@@ -21,7 +21,7 @@ function MatchResultForm({ match, onSaved }) {
         className="w-12 bg-slate-800 border border-slate-600 rounded-lg text-center py-1 text-white focus:outline-none focus:border-green-500" />
       <span className="text-slate-500">–</span>
       <input type="number" min="0" max="20" value={away} onChange={e => setAway(e.target.value)}
-        className="w-full w-12 bg-slate-800 border border-slate-600 rounded-lg text-center py-1 text-white focus:outline-none focus:border-green-500" />
+        className="w-12 bg-slate-800 border border-slate-600 rounded-lg text-center py-1 text-white focus:outline-none focus:border-green-500" />
       <button onClick={save} disabled={saving || home === '' || away === ''}
         className="btn-primary !py-1 !px-3 text-xs disabled:opacity-50">
         {saving ? '…' : 'Save'}
