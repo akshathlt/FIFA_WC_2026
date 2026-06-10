@@ -199,6 +199,26 @@ function ShareCard({ rank, total, pts, name }) {
     }
   }
 
+  const TEAMS_CHANNEL_URL = 'https://teams.microsoft.com/l/channel/19%3AnWjrn6Ws4prPrtyMii3cFJfMIBrxORaOeT7NJHt8C641%40thread.tacv2/General?groupId=2e6838e9-1bda-4b4e-9e73-0da45f801511&tenantId=42f7676c-f455-423c-82f6-dc2d99791af7'
+  const TEAMS_CHANNEL_EMAIL = 'd18e5c0b.groups.sap.com@emea.teams.ms'
+
+  const shareToTeams = async () => {
+    // Copy image first
+    await copyImage()
+    // Build message
+    const msg = encodeURIComponent(`${shareText}\n\nJoin the game 👉 ${shareUrl}`)
+    // Open Teams deep link to compose a message in the channel
+    const teamsDeepLink = `https://teams.microsoft.com/l/channel/19%3AnWjrn6Ws4prPrtyMii3cFJfMIBrxORaOeT7NJHt8C641%40thread.tacv2/General?groupId=2e6838e9-1bda-4b4e-9e73-0da45f801511&tenantId=42f7676c-f455-423c-82f6-dc2d99791af7`
+    window.open(teamsDeepLink, '_blank')
+  }
+
+  const shareToTeamsEmail = async () => {
+    await copyImage()
+    const subject = encodeURIComponent(`⚽ WC2026 Predictor – I'm ranked #${rank}!`)
+    const body = encodeURIComponent(`${shareText}\n\nJoin the game: ${shareUrl}`)
+    window.location.href = `mailto:${TEAMS_CHANNEL_EMAIL}?subject=${subject}&body=${body}`
+  }
+
   const downloadImage = () => {
     const dataUrl = getDataUrl()
     if (!dataUrl) return
@@ -254,6 +274,22 @@ function ShareCard({ rank, total, pts, name }) {
         </button>
       </div>
 
+      {/* Teams share — prominent row */}
+      <div className="flex gap-2 justify-center flex-wrap mb-3">
+        <button onClick={shareToTeams}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-white transition-colors"
+          style={{background:'#5558af'}}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.625 3.375h-3.75A.375.375 0 0 0 16.5 3.75v3.75c0 .621-.504 1.125-1.125 1.125H9.375A1.125 1.125 0 0 1 8.25 7.5V3.75A.375.375 0 0 0 7.875 3.375h-3.75A.375.375 0 0 0 3.75 3.75v16.5c0 .207.168.375.375.375h16.5a.375.375 0 0 0 .375-.375V3.75a.375.375 0 0 0-.375-.375zM12 15.75a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/></svg>
+          Post to Teams Channel
+        </button>
+        <button onClick={shareToTeamsEmail}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-white transition-colors border border-purple-600"
+          style={{background:'#3d3d6b'}}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+          Email to Teams Channel
+        </button>
+      </div>
+
       {/* Social links */}
       <div className="flex gap-2 justify-center flex-wrap">
         <a href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}&summary=${encodeURIComponent(shareText)}`}
@@ -282,7 +318,7 @@ function ShareCard({ rank, total, pts, name }) {
           Instagram
         </a>
       </div>
-      <p className="text-xs text-slate-600 text-center mt-2">Clicking any social button also copies the image to clipboard 📋</p>
+      <p className="text-xs text-slate-600 text-center mt-2">Clicking any button copies the image to clipboard 📋 · Teams buttons also open the channel</p>
     </div>
   )
 }
