@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import Navbar from './components/Navbar'
 import NewsSidebar from './components/NewsSidebar'
@@ -15,6 +15,8 @@ import ChangePassword from './pages/ChangePassword'
 
 function Inner() {
   const { session, player } = useAuth()
+  const location = useLocation()
+  const isChangingPassword = location.pathname === '/change-password'
 
   if (session === undefined) {
     return (
@@ -27,8 +29,8 @@ function Inner() {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      {session && !player && <OnboardModal />}
-      {session && player?.must_change_password && <ForceChangePasswordModal />}
+      {session && !player && !isChangingPassword && <OnboardModal />}
+      {session && player?.must_change_password && !isChangingPassword && <ForceChangePasswordModal />}
       <div className="flex flex-1 min-h-0">
         <main className="flex-1 min-w-0 overflow-y-auto">
           <Routes>
