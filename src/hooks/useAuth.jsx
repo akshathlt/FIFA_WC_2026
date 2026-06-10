@@ -29,6 +29,9 @@ export function AuthProvider({ children }) {
   const signInWithPassword = (email, password) =>
     supabase.auth.signInWithPassword({ email, password })
 
+  const signUpWithPassword = (email, password) =>
+    supabase.auth.signUp({ email, password })
+
   const signOut = () => supabase.auth.signOut()
 
   const createProfile = async (displayName, groupCode = 'WC2026') => {
@@ -42,7 +45,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ session, player, setPlayer, signInWithEmail, signInWithPassword, signOut, createProfile }}>
+    <AuthContext.Provider value={{ session, player, setPlayer, signInWithEmail, signInWithPassword, signUpWithPassword, signOut, createProfile }}>
       {children}
     </AuthContext.Provider>
   )
