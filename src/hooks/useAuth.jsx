@@ -26,6 +26,9 @@ export function AuthProvider({ children }) {
   const signInWithEmail = (email) =>
     supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${window.location.origin}/wc2026-predictor/` } })
 
+  const signInWithPassword = (email, password) =>
+    supabase.auth.signInWithPassword({ email, password })
+
   const signOut = () => supabase.auth.signOut()
 
   const createProfile = async (displayName, groupCode = 'WC2026') => {
@@ -39,7 +42,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ session, player, setPlayer, signInWithEmail, signOut, createProfile }}>
+    <AuthContext.Provider value={{ session, player, setPlayer, signInWithEmail, signInWithPassword, signOut, createProfile }}>
       {children}
     </AuthContext.Provider>
   )
