@@ -1,9 +1,31 @@
 import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 
+function PasswordInput({ value, onChange, placeholder = '••••••••' }) {
+  const [show, setShow] = useState(false)
+  return (
+    <div className="relative">
+      <input
+        type={show ? 'text' : 'password'}
+        value={value} onChange={onChange}
+        placeholder={placeholder}
+        className="w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 pr-11 text-white placeholder-slate-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
+      />
+      <button type="button" onClick={() => setShow(s => !s)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+        tabIndex={-1}>
+        {show
+          ? <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          : <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        }
+      </button>
+    </div>
+  )
+}
+
 export default function Auth() {
   const { signInWithPassword, signUpWithPassword, resetPassword } = useAuth()
-  const [mode,     setMode]     = useState('signin') // 'signin' | 'signup' | 'forgot'
+  const [mode,     setMode]     = useState('signin')
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [confirm,  setConfirm]  = useState('')
@@ -17,7 +39,6 @@ export default function Auth() {
     e.preventDefault()
     setErr('')
     if (!email.trim()) { setErr('Please enter your email'); return }
-
     setBusy(true)
     if (mode === 'forgot') {
       const { error } = await resetPassword(email.trim())
@@ -46,11 +67,8 @@ export default function Auth() {
       <div className="card p-8 max-w-md w-full text-center">
         <div className="text-6xl mb-4">🏆</div>
         <h1 className="text-3xl font-black mb-2">World Cup 2026</h1>
-        <p className="text-slate-400 mb-6">
-          Predict results, earn points, top the leaderboard!
-        </p>
+        <p className="text-slate-400 mb-6">Predict results, earn points, top the leaderboard!</p>
 
-        {/* Mode toggle — only show for signin/signup */}
         {mode !== 'forgot' && (
           <div className="flex rounded-xl overflow-hidden border border-slate-700 mb-6">
             <button onClick={() => switchMode('signin')}
@@ -66,7 +84,6 @@ export default function Auth() {
           </div>
         )}
 
-        {/* Forgot password header */}
         {mode === 'forgot' && (
           <div className="mb-6 text-left">
             <button onClick={() => switchMode('signin')}
@@ -77,7 +94,6 @@ export default function Auth() {
           </div>
         )}
 
-        {/* Success states */}
         {done && mode === 'signup' && (
           <div className="bg-green-900/40 border border-green-700 rounded-xl p-6">
             <div className="text-4xl mb-3">✅</div>
@@ -109,21 +125,13 @@ export default function Auth() {
             {mode !== 'forgot' && (
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">Password</label>
-                <input
-                  type="password" value={password} onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
-                />
+                <PasswordInput value={password} onChange={e => setPassword(e.target.value)} />
               </div>
             )}
             {mode === 'signup' && (
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">Confirm Password</label>
-                <input
-                  type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
-                />
+                <PasswordInput value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Repeat password" />
               </div>
             )}
             {err && <p className="text-red-400 text-sm">{err}</p>}
@@ -131,7 +139,6 @@ export default function Auth() {
               className="btn-primary w-full text-center disabled:opacity-50">
               {busy ? '…' : mode === 'signup' ? 'Create Account 🚀' : mode === 'forgot' ? 'Send Reset Link 📧' : 'Sign In 🔑'}
             </button>
-            {/* Forgot password link — only on sign-in */}
             {mode === 'signin' && (
               <p className="text-center text-xs text-slate-500 mt-2">
                 Forgot your password?{' '}
