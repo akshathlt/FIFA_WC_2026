@@ -6,7 +6,7 @@ import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter basename="/wc2026-predictor">
+    <BrowserRouter basename="/FIFA_WC_2026">
       <App />
     </BrowserRouter>
   </React.StrictMode>

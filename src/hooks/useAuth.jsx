@@ -24,7 +24,7 @@ export function AuthProvider({ children }) {
   }, [session])
 
   const signInWithEmail = (email) =>
-    supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${window.location.origin}/wc2026-predictor/` } })
+    supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${window.location.origin}/FIFA_WC_2026/` } })
 
   const signInWithPassword = (email, password) =>
     supabase.auth.signInWithPassword({ email, password })
@@ -34,7 +34,7 @@ export function AuthProvider({ children }) {
 
   const resetPassword = (email) =>
     supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/wc2026-predictor/change-password`
+      redirectTo: `${window.location.origin}/FIFA_WC_2026/change-password`
     })
 
   const updatePassword = (newPassword) =>

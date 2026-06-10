@@ -3,5 +3,5 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  base: '/wc2026-predictor/',
+  base: '/FIFA_WC_2026/',
 })
