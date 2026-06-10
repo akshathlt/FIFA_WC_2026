@@ -3,7 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <title>⚽ World Cup 2026 Predictor</title>
-    <script>sessionStorage.redirect = location.href;</script>
+    <script>
+      // Preserve full URL including hash (needed for Supabase auth tokens)
+      sessionStorage.redirect = location.href;
+    </script>
     <meta http-equiv="refresh" content="0;URL='/wc2026-predictor/'">
   </head>
   <body></body>
