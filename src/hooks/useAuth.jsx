@@ -42,7 +42,7 @@ export function AuthProvider({ children }) {
 
   const signOut = () => supabase.auth.signOut()
 
-  const createProfile = async (displayName, groupCode = 'WC2026') => {
+  const createProfile = async (displayName, groupCode = 'O2C_WC26') => {
     const { data, error } = await supabase
       .from('players')
       .upsert({ user_id: session.user.id, display_name: displayName, email: session.user.email, group_code: groupCode }, { onConflict: 'user_id' })
