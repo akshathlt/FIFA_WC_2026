@@ -46,6 +46,48 @@ export default function Admin() {
     supabase.from('prediction_groups').select('*').then(({ data }) => data && setGroups(data))
   }, [player])
 
+  const syncFromESPN = async () => {
+    setMsg('Fetching scores from ESPN…')
+    try {
+      const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard')
+      const json = await res.json()
+      const events = json.events || []
+      if (events.length === 0) { setMsg('No live/recent matches found on ESPN right now.'); return }
+
+      let updated = 0
+      for (const event of events) {
+        const comp = event.competitions?.[0]
+        if (!comp) continue
+        const finished = comp.status?.type?.completed
+        if (!finished) continue
+
+        const home = comp.competitors?.find(c => c.homeAway === 'home')
+        const away = comp.competitors?.find(c => c.homeAway === 'away')
+        if (!home || !away) continue
+
+        const homeName = home.team?.displayName
+        const awayName = away.team?.displayName
+        const homeGoals = parseInt(home.score ?? '')
+        const awayGoals = parseInt(away.score ?? '')
+        if (isNaN(homeGoals) || isNaN(awayGoals)) continue
+
+        // Match by team names (case-insensitive partial match)
+        const match = matches.find(m =>
+          m.home_team.toLowerCase().includes(homeName?.toLowerCase()) ||
+          homeName?.toLowerCase().includes(m.home_team.toLowerCase())
+        )
+        if (!match) continue
+
+        await supabase.from('matches').update({ home_goals: homeGoals, away_goals: awayGoals, locked: true }).eq('id', match.id)
+        updated++
+      }
+      setMsg(updated > 0 ? `Synced ${updated} match result(s) from ESPN ✅` : 'No completed matches matched our fixtures yet.')
+      supabase.from('matches').select('*').order('match_num').then(({ data }) => data && setMatches(data))
+    } catch (e) {
+      setMsg('ESPN sync failed: ' + e.message)
+    }
+  }
+
   const recalcPoints = async () => {
     setMsg('Recalculating points…')
     // For each match with a result, score all predictions
@@ -126,9 +168,14 @@ export default function Admin() {
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <p className="text-slate-400 text-sm">Enter real scores after each match. Points recalculate automatically.</p>
-            <button onClick={recalcPoints} className="btn-primary !py-2 !px-4 text-sm">
-              🔄 Recalculate All Points
-            </button>
+            <div className="flex gap-2">
+              <button onClick={syncFromESPN} className="btn-secondary !py-2 !px-4 text-sm">
+                📡 Sync from ESPN
+              </button>
+              <button onClick={recalcPoints} className="btn-primary !py-2 !px-4 text-sm">
+                🔄 Recalculate All Points
+              </button>
+            </div>
           </div>
           <div className="card p-4 space-y-3">
             {matches.length === 0 && <p className="text-slate-500 text-sm text-center py-4">No matches in DB yet — run the SQL schema first.</p>}
