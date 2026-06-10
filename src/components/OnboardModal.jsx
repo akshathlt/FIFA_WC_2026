@@ -1,18 +1,31 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { supabase } from '../lib/supabase'
 
 export default function OnboardModal() {
   const { createProfile } = useAuth()
-  const [name, setName]   = useState('')
-  const [code, setCode]   = useState('O2C_WC26')
-  const [busy, setBusy]   = useState(false)
-  const [err,  setErr]    = useState('')
+  const [name,   setName]   = useState('')
+  const [code,   setCode]   = useState('')
+  const [groups, setGroups] = useState([])
+  const [busy,   setBusy]   = useState(false)
+  const [err,    setErr]    = useState('')
+
+  useEffect(() => {
+    supabase.from('prediction_groups').select('code, name').order('name')
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setGroups(data)
+          setCode(data[0].code)
+        }
+      })
+  }, [])
 
   const submit = async (e) => {
     e.preventDefault()
     if (!name.trim()) { setErr('Please enter a display name'); return }
+    if (!code) { setErr('Please select a group'); return }
     setBusy(true)
-    const { error } = await createProfile(name.trim(), code.trim() || 'O2C_WC26')
+    const { error } = await createProfile(name.trim(), code)
     if (error) setErr(error.message)
     setBusy(false)
   }
@@ -35,16 +48,24 @@ export default function OnboardModal() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Group invite code</label>
-            <input
-              value={code} onChange={e => setCode(e.target.value)}
-              placeholder="WC2026"
-              className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-green-500"
-            />
-            <p className="text-slate-500 text-xs mt-1">Use code <span className="text-green-400 font-mono">O2C_WC26</span> — or enter your private group code if you have one</p>
+            <label className="block text-sm font-medium mb-1">Select your group *</label>
+            {groups.length === 0 ? (
+              <div className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2.5 text-slate-500 text-sm animate-pulse">
+                Loading groups…
+              </div>
+            ) : (
+              <select
+                value={code} onChange={e => setCode(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-green-500">
+                {groups.map(g => (
+                  <option key={g.code} value={g.code}>{g.name} · {g.code}</option>
+                ))}
+              </select>
+            )}
+            <p className="text-slate-500 text-xs mt-1">Select the group your admin assigned to you</p>
           </div>
           {err && <p className="text-red-400 text-sm">{err}</p>}
-          <button type="submit" disabled={busy}
+          <button type="submit" disabled={busy || !code}
             className="btn-primary w-full disabled:opacity-50">
             {busy ? 'Joining…' : "Let's go! 🚀"}
           </button>
