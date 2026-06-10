@@ -116,8 +116,8 @@ function PlayerRow({ p, rank, isMe }) {
 function ShareCard({ rank, total, pts, name }) {
   const [copied, setCopied] = useState(false)
   const canvasRef = useRef(null)
-  const shareText = `🏆 WC2026 Predictor\nI'm ranked #${rank} out of ${total} players with ${pts} pts!\n⚽ #WorldCup2026 #WC2026\nhttps://akshathlt.github.io/wc2026-predictor/`
-  const shareUrl  = 'https://akshathlt.github.io/wc2026-predictor/'
+  const shareText = `🏆 WC2026 Predictor\nI'm ranked #${rank} out of ${total} players with ${pts} pts!\n⚽ #WorldCup2026 #WC2026\nhttps://akshathlt.github.io/FIFA_WC_2026/`
+  const shareUrl  = 'https://akshathlt.github.io/FIFA_WC_2026/'
 
   const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '⚽'
   const rankColor = rank <= 3 ? '#22c55e' : rank <= Math.ceil(total / 2) ? '#fbbf24' : '#94a3b8'
@@ -172,7 +172,7 @@ function ShareCard({ rank, total, pts, name }) {
     // Bottom tag
     ctx.fillStyle = '#334155'
     ctx.font = '13px Arial'
-    ctx.fillText('akshathlt.github.io/wc2026-predictor  ·  SAP CPIT O2C-Engineering', W/2, 295)
+    ctx.fillText('akshathlt.github.io/FIFA_WC_2026  ·  SAP CPIT O2C-Engineering', W/2, 295)
   }
 
   // useEffect to draw
@@ -410,7 +410,7 @@ ${rankRows}
 ${gapRow}
 
 📌 Total participants: ${totalPlayers}
-🔗 Full leaderboard: https://akshathlt.github.io/wc2026-predictor/leaderboard
+🔗 Full leaderboard: https://akshathlt.github.io/FIFA_WC_2026/leaderboard
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -426,7 +426,7 @@ Keep predicting and climb the leaderboard! 🚀
 
 Best regards,
 CPIT O2C-Engineering – Events Team | SAP
-🔗 https://akshathlt.github.io/wc2026-predictor/
+🔗 https://akshathlt.github.io/FIFA_WC_2026/
 `)
 
     window.location.href = `mailto:?subject=${subject}&body=${body}`
@@ -437,7 +437,7 @@ CPIT O2C-Engineering – Events Team | SAP
 
       {/* ── Team branding ── */}
       <div className="flex items-center gap-2 mb-5">
-        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAYAAAByDd+UAAAAe0lEQVR4AWNwL/ChKx4iFo5aOGohQ95bRhCmsuEIs0t+s6NaWPBpBRD/pxnOfpaHbuFcWltGBwsRltHBQoRl9LEw82EIyFw6WIiwjA4WIiyjg4UIy+hgIcIyOliIsIw+FiZfcyTWIgqKNoRltC684WpH68NRC6mKRy0EAHBbTni0yjioAAAAAElFTkSuQmCC" alt="SAP" className="h-6 w-auto" />
+        <img src="/FIFA_WC_2026/sap-logo-3d.png" alt="SAP" className="h-6 w-auto" />
         <span className="text-slate-400 text-xs font-semibold">CPIT O2C-Engineering – Events Team</span>
       </div>
 
@@ -539,3 +539,5 @@ CPIT O2C-Engineering – Events Team | SAP
     </div>
   )
 }
+
+

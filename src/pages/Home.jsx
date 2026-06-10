@@ -46,7 +46,9 @@ export default function Home() {
     <div className="max-w-5xl mx-auto px-4 py-12 space-y-16">
       {/* Hero */}
       <div className="text-center space-y-6">
-        <div className="text-7xl">⚽</div>
+        <div className="flex justify-center">
+          <img src="/FIFA_WC_2026/wc-logo.png" alt="FIFA World Cup 2026" className="h-28 w-auto drop-shadow-2xl" />
+        </div>
         <h1 className="text-5xl sm:text-6xl font-black tracking-tight">
           World Cup <span className="text-green-400">2026</span>
         </h1>
