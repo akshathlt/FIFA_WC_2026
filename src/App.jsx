@@ -10,6 +10,7 @@ import Rules from './pages/Rules'
 import Admin from './pages/Admin'
 import MatchPredict from './pages/MatchPredict'
 import OnboardModal from './components/OnboardModal'
+import ChangePassword from './pages/ChangePassword'
 
 function Inner() {
   const { session, player } = useAuth()
@@ -36,6 +37,7 @@ function Inner() {
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/rules"      element={<Rules />} />
             <Route path="/admin"      element={session && player?.is_admin ? <Admin /> : <Navigate to="/" />} />
+            <Route path="/change-password" element={<ChangePassword />} />
             <Route path="*"           element={<Navigate to="/" />} />
           </Routes>
         </main>

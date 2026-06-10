@@ -32,6 +32,14 @@ export function AuthProvider({ children }) {
   const signUpWithPassword = (email, password) =>
     supabase.auth.signUp({ email, password })
 
+  const resetPassword = (email) =>
+    supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/wc2026-predictor/change-password`
+    })
+
+  const updatePassword = (newPassword) =>
+    supabase.auth.updateUser({ password: newPassword })
+
   const signOut = () => supabase.auth.signOut()
 
   const createProfile = async (displayName, groupCode = 'WC2026') => {
@@ -45,7 +53,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ session, player, setPlayer, signInWithEmail, signInWithPassword, signUpWithPassword, signOut, createProfile }}>
+    <AuthContext.Provider value={{ session, player, setPlayer, signInWithEmail, signInWithPassword, signUpWithPassword, resetPassword, updatePassword, signOut, createProfile }}>
       {children}
     </AuthContext.Provider>
   )
