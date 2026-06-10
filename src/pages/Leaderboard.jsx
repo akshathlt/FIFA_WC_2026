@@ -172,6 +172,56 @@ export default function Leaderboard() {
   // "World" average — placeholder until real data; ESPN match data used when available
   const worldAvgAcc  = oddsData ? 42 : 38
 
+  const sendDailyEmail = () => {
+    const top5 = players.slice(0, 5)
+    const today = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
+    const medals = ['🥇','🥈','🥉','4️⃣','5️⃣']
+    const totalPlayers = players.length
+
+    const rankRows = top5.map((p, i) =>
+      `${medals[i]}  #${i+1}  ${p.display_name.padEnd(20,' ')}  ${p.total_pts} pts  (Matches: ${p.stage_pts||0} | Special: ${p.special_pts||0})`
+    ).join('\n')
+
+    const gapRow = top5.length > 1
+      ? `\n📊 Gap between 1st and 2nd: ${(top5[0]?.total_pts||0) - (top5[1]?.total_pts||0)} pts`
+      : ''
+
+    const subject = encodeURIComponent(`⚽ WC2026 Predictor – Daily Standings Update | ${today}`)
+    const body = encodeURIComponent(
+`Hi Team,
+
+Here is your daily WC2026 Predictor standings update for ${today}!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏆 TOP 5 LEADERBOARD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${rankRows}
+${gapRow}
+
+📌 Total participants: ${totalPlayers}
+🔗 Full leaderboard: https://akshathlt.github.io/wc2026-predictor/leaderboard
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 Reminder: Submit your match predictions before each kick-off to keep earning points!
+
+Points system:
+  • Correct winner/draw  → 2 pts
+  • Correct goal diff    → 3 pts
+  • Exact scoreline      → 5 pts
+  • 🃏 Joker card         → ×2 multiplier
+
+Keep predicting and climb the leaderboard! 🚀
+
+Best regards,
+CPIT O2C-Engineering – Events Team | SAP
+🔗 https://akshathlt.github.io/wc2026-predictor/
+`)
+
+    window.location.href = `mailto:?subject=${subject}&body=${body}`
+  }
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
 
@@ -191,6 +241,12 @@ export default function Leaderboard() {
             </p>
           )}
         </div>
+        {players.length > 0 && (
+          <button onClick={sendDailyEmail}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all bg-blue-700 hover:bg-blue-600 text-white">
+            📧 Send Daily Update
+          </button>
+        )}
       </div>
 
       {/* ── My Standing Card (rank gauge + accuracy) ── */}
