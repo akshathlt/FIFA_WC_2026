@@ -10,6 +10,7 @@ import Rules from './pages/Rules'
 import Admin from './pages/Admin'
 import MatchPredict from './pages/MatchPredict'
 import OnboardModal from './components/OnboardModal'
+import ForceChangePasswordModal from './components/ForceChangePasswordModal'
 import ChangePassword from './pages/ChangePassword'
 
 function Inner() {
@@ -27,6 +28,7 @@ function Inner() {
     <div className="min-h-screen flex flex-col">
       <Navbar />
       {session && !player && <OnboardModal />}
+      {session && player?.must_change_password && <ForceChangePasswordModal />}
       <div className="flex flex-1 min-h-0">
         <main className="flex-1 min-w-0 overflow-y-auto">
           <Routes>

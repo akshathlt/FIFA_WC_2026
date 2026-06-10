@@ -131,6 +131,16 @@ export default function Admin() {
     setPlayers(prev => prev.map(x => x.id === p.id ? { ...x, is_admin: !x.is_admin } : x))
   }
 
+  const resetPlayerPassword = async (p) => {
+    const tempPass = 'WC2026@' + Math.floor(1000 + Math.random() * 9000)
+    if (!window.confirm(`Reset password for ${p.display_name}?\n\nTemp password will be: ${tempPass}\n\nCopy it and share with the user.`)) return
+    // Set must_change_password flag
+    await supabase.from('players').update({ must_change_password: true }).eq('id', p.id)
+    setPlayers(prev => prev.map(x => x.id === p.id ? { ...x, must_change_password: true } : x))
+    // Show the temp password to copy — admin must update via SQL
+    setMsg(`Temp password for ${p.display_name}: ${tempPass} — Run SQL to set it, then share with user ✅`)
+  }
+
   const addGroup = async () => {
     if (!newGroup.code || !newGroup.name) return
     const { data, error } = await supabase.from('prediction_groups').insert(newGroup).select().single()
@@ -201,7 +211,10 @@ export default function Admin() {
             <tbody className="divide-y divide-slate-800">
               {players.map(p => (
                 <tr key={p.id} className="hover:bg-slate-800/50">
-                  <td className="px-4 py-3 font-medium">{p.display_name}</td>
+                  <td className="px-4 py-3 font-medium">
+                    {p.display_name}
+                    {p.must_change_password && <span className="ml-2 text-xs bg-orange-900/50 text-orange-400 px-1.5 py-0.5 rounded">temp pwd</span>}
+                  </td>
                   <td className="px-4 py-3 text-slate-400 text-xs">{p.email}</td>
                   <td className="px-4 py-3 text-slate-400 text-xs">{p.group_code}</td>
                   <td className="px-4 py-3 font-bold text-yellow-400">{p.total_pts}</td>
@@ -212,7 +225,11 @@ export default function Admin() {
                       {p.is_admin ? 'Yes' : 'No'}
                     </button>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 flex gap-2">
+                    <button onClick={() => resetPlayerPassword(p)}
+                      className="text-orange-400 hover:text-orange-300 text-xs font-medium">
+                      Reset Pwd
+                    </button>
                     <button onClick={() => deletePlayer(p.id)}
                       className="text-red-500 hover:text-red-400 text-xs font-medium">
                       Remove
