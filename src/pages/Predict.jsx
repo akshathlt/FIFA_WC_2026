@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -360,7 +361,7 @@ export default function Predict() {
           <p className="text-slate-400 mb-8">Your picks are locked in. Check the leaderboard after matches!</p>
           <div className="flex gap-4 justify-center">
             <button onClick={() => setStep(0)} className="btn-secondary">← Edit Picks</button>
-            <a href="/wc2026/leaderboard" className="btn-primary">🏆 View Leaderboard</a>
+            <Link to="/leaderboard" className="btn-primary">🏆 View Leaderboard</Link>
           </div>
         </div>
       )}
