@@ -177,7 +177,7 @@ export default function Leaderboard() {
 
       {/* ── Team branding ── */}
       <div className="flex items-center gap-2 mb-5">
-        <div style={{background:'#0070f3'}} className="text-white text-xs font-black px-2 py-1 rounded">SAP</div>
+        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAYAAAByDd+UAAAAe0lEQVR4AWNwL/ChKx4iFo5aOGohQ95bRhCmsuEIs0t+s6NaWPBpBRD/pxnOfpaHbuFcWltGBwsRltHBQoRl9LEw82EIyFw6WIiwjA4WIiyjg4UIy+hgIcIyOliIsIw+FiZfcyTWIgqKNoRltC684WpH68NRC6mKRy0EAHBbTni0yjioAAAAAElFTkSuQmCC" alt="SAP" className="h-6 w-auto" />
         <span className="text-slate-400 text-xs font-semibold">CPIT O2C-Engineering – Events Team</span>
       </div>
 
