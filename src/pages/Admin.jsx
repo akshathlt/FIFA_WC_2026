@@ -2,30 +2,61 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 
+const KNOCKOUT_STAGES = ['r32', 'qf', 'sf', '3rd', 'final']
+
 function MatchResultForm({ match, onSaved }) {
-  const [home, setHome] = useState(match.home_goals ?? '')
-  const [away, setAway] = useState(match.away_goals ?? '')
-  const [saving, setSaving] = useState(false)
+  const [home,      setHome]      = useState(match.home_goals ?? '')
+  const [away,      setAway]      = useState(match.away_goals ?? '')
+  const [penWinner, setPenWinner] = useState(match.penalty_winner ?? '')
+  const [saving,    setSaving]    = useState(false)
+
+  const knockout = KNOCKOUT_STAGES.includes(match.stage)
+  const isDraw   = home !== '' && away !== '' && Number(home) === Number(away)
 
   const save = async () => {
     setSaving(true)
-    await supabase.from('matches').update({ home_goals: Number(home), away_goals: Number(away), locked: true }).eq('id', match.id)
+    const update = { home_goals: Number(home), away_goals: Number(away), locked: true }
+    if (knockout && isDraw) update.penalty_winner = penWinner || null
+    await supabase.from('matches').update(update).eq('id', match.id)
     onSaved()
     setSaving(false)
   }
 
+  const stageBadge = { r32:'R16', qf:'QF', sf:'SF', '3rd':'3rd', final:'FINAL' }
+
   return (
-    <div className="flex items-center gap-3 text-sm">
-      <span className="flex-1 font-medium truncate">{match.home_team} vs {match.away_team}</span>
-      <input type="number" min="0" max="20" value={home} onChange={e => setHome(e.target.value)}
-        className="w-12 bg-slate-800 border border-slate-600 rounded-lg text-center py-1 text-white focus:outline-none focus:border-green-500" />
-      <span className="text-slate-500">–</span>
-      <input type="number" min="0" max="20" value={away} onChange={e => setAway(e.target.value)}
-        className="w-12 bg-slate-800 border border-slate-600 rounded-lg text-center py-1 text-white focus:outline-none focus:border-green-500" />
-      <button onClick={save} disabled={saving || home === '' || away === ''}
-        className="btn-primary !py-1 !px-3 text-xs disabled:opacity-50">
-        {saving ? '…' : 'Save'}
-      </button>
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-3 text-sm">
+        <div className="flex-1 min-w-0">
+          <span className="font-medium truncate block">{match.home_team} vs {match.away_team}</span>
+          {knockout && <span className="text-xs bg-purple-700/40 text-purple-300 px-1.5 py-0.5 rounded">{stageBadge[match.stage]}</span>}
+        </div>
+        <input type="number" min="0" max="20" value={home} onChange={e => setHome(e.target.value)}
+          className="w-12 bg-slate-800 border border-slate-600 rounded-lg text-center py-1 text-white focus:outline-none focus:border-green-500" />
+        <span className="text-slate-500">–</span>
+        <input type="number" min="0" max="20" value={away} onChange={e => setAway(e.target.value)}
+          className="w-12 bg-slate-800 border border-slate-600 rounded-lg text-center py-1 text-white focus:outline-none focus:border-green-500" />
+        <button onClick={save} disabled={saving || home === '' || away === ''}
+          className="btn-primary !py-1 !px-3 text-xs disabled:opacity-50">
+          {saving ? '…' : 'Save'}
+        </button>
+      </div>
+      {/* Penalty winner for knockout draws */}
+      {knockout && isDraw && home !== '' && away !== '' && (
+        <div className="flex items-center gap-2 pl-2">
+          <span className="text-xs text-purple-300">🥅 Pen winner:</span>
+          <button onClick={() => setPenWinner(match.home_team)}
+            className={`px-2 py-0.5 rounded text-xs font-semibold border transition-all
+              ${penWinner === match.home_team ? 'bg-purple-700 border-purple-500 text-white' : 'border-slate-700 text-slate-400 hover:border-purple-500'}`}>
+            {match.home_team}
+          </button>
+          <button onClick={() => setPenWinner(match.away_team)}
+            className={`px-2 py-0.5 rounded text-xs font-semibold border transition-all
+              ${penWinner === match.away_team ? 'bg-purple-700 border-purple-500 text-white' : 'border-slate-700 text-slate-400 hover:border-purple-500'}`}>
+            {match.away_team}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -90,28 +121,34 @@ export default function Admin() {
 
   const recalcPoints = async () => {
     setMsg('Recalculating points…')
-    // For each match with a result, score all predictions
     const { data: finishedMatches } = await supabase.from('matches').select('*').not('home_goals', 'is', null)
     for (const match of finishedMatches || []) {
       const { data: preds } = await supabase.from('match_predictions').select('*').eq('match_id', match.id)
+      const knockout = KNOCKOUT_STAGES.includes(match.stage)
+      const realDraw = match.home_goals === match.away_goals
       for (const pred of preds || []) {
         let pts = 0
         const realDiff = match.home_goals - match.away_goals
         const predDiff = pred.predicted_home - pred.predicted_away
         const realOutcome = Math.sign(realDiff)
         const predOutcome = Math.sign(predDiff)
-        if (predOutcome === realOutcome) pts += 2  // correct outcome
-        if (predDiff === realDiff) pts += 1         // goal difference (extra 1 on top = 3 total)
-        if (pred.predicted_home === match.home_goals && pred.predicted_away === match.away_goals) pts += 2 // exact (extra 2 on top = 5)
-        if (pred.joker_used) pts *= 2
-        await supabase.from('match_predictions').update({ total_pts: pts }).eq('id', pred.id)
+        if (predOutcome === realOutcome) pts += 2
+        if (predDiff === realDiff) pts += 1
+        if (pred.predicted_home === match.home_goals && pred.predicted_away === match.away_goals) pts += 2
+        // Knockout draw bonus: predicted a draw in knockout = +5 extra
+        let penPts = 0
+        if (knockout && realDraw && predDiff === 0) penPts += 5
+        // Penalty winner bonus: correct penalty pick = +5 extra
+        if (knockout && realDraw && match.penalty_winner && pred.penalty_winner === match.penalty_winner) penPts += 5
+        if (pred.joker_used) { pts *= 2; penPts *= 2 }
+        await supabase.from('match_predictions').update({ total_pts: pts, penalty_pts: penPts }).eq('id', pred.id)
       }
     }
     // Recount player totals
-    const { data: allPreds } = await supabase.from('match_predictions').select('player_id, total_pts')
+    const { data: allPreds } = await supabase.from('match_predictions').select('player_id, total_pts, penalty_pts')
     const totals = {}
     for (const p of allPreds || []) {
-      totals[p.player_id] = (totals[p.player_id] || 0) + (p.total_pts || 0)
+      totals[p.player_id] = (totals[p.player_id] || 0) + (p.total_pts || 0) + (p.penalty_pts || 0)
     }
     for (const [pid, pts] of Object.entries(totals)) {
       await supabase.from('players').update({ stage_pts: pts, total_pts: pts }).eq('id', pid)
