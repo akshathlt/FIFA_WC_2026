@@ -24,7 +24,7 @@ export function AuthProvider({ children }) {
   }, [session])
 
   const signInWithEmail = (email) =>
-    supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${window.location.origin}/wc2026/` } })
+    supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${window.location.origin}/wc2026-predictor/` } })
 
   const signOut = () => supabase.auth.signOut()
 
