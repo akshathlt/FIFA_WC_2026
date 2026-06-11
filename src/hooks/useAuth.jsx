@@ -19,7 +19,7 @@ export function AuthProvider({ children }) {
       .from('players')
       .select('*')
       .eq('user_id', session.user.id)
-      .single()
+      .maybeSingle()
       .then(({ data }) => setPlayer(data))
   }, [session])
 
@@ -30,7 +30,10 @@ export function AuthProvider({ children }) {
     supabase.auth.signInWithPassword({ email, password })
 
   const signUpWithPassword = (email, password) =>
-    supabase.auth.signUp({ email, password })
+    supabase.auth.signUp({
+      email, password,
+      options: { emailRedirectTo: `${window.location.origin}/FIFA_WC_2026/` }
+    })
 
   const resetPassword = (email) =>
     supabase.auth.resetPasswordForEmail(email, {
@@ -42,10 +45,16 @@ export function AuthProvider({ children }) {
 
   const signOut = () => supabase.auth.signOut()
 
-  const createProfile = async (displayName, groupCode = 'O2C_WC26') => {
+  const createProfile = async (displayName, groupCode = 'WC2026', avatarSeed = 'adventurer') => {
     const { data, error } = await supabase
       .from('players')
-      .upsert({ user_id: session.user.id, display_name: displayName, email: session.user.email, group_code: groupCode }, { onConflict: 'user_id' })
+      .upsert({
+        user_id: session.user.id,
+        display_name: displayName,
+        email: session.user.email,
+        group_code: groupCode,
+        avatar_seed: avatarSeed,
+      }, { onConflict: 'user_id' })
       .select()
       .single()
     if (!error) setPlayer(data)

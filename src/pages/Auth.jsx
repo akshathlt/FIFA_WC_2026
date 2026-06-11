@@ -96,9 +96,15 @@ export default function Auth() {
 
         {done && mode === 'signup' && (
           <div className="bg-green-900/40 border border-green-700 rounded-xl p-6">
-            <div className="text-4xl mb-3">✅</div>
-            <p className="font-semibold text-green-300">Account created!</p>
-            <p className="text-slate-400 text-sm mt-2">You can now sign in with your email and password.</p>
+            <div className="text-4xl mb-3">📧</div>
+            <p className="font-semibold text-green-300">Check your email!</p>
+            <p className="text-slate-400 text-sm mt-2">
+              We sent a confirmation link to <strong className="text-white">{email}</strong>.
+              Click the link in your email to activate your account, then come back here to sign in.
+            </p>
+            <p className="text-slate-500 text-xs mt-3">
+              ⚠️ Do NOT open the link on localhost — close that tab and come back to sign in here after clicking the email link.
+            </p>
             <button onClick={() => switchMode('signin')} className="btn-primary mt-4 w-full">Go to Sign In</button>
           </div>
         )}

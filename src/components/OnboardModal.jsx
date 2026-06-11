@@ -72,9 +72,10 @@ export default function OnboardModal() {
   const submit = async (e) => {
     e.preventDefault()
     if (!name.trim()) { setErr('Please enter a display name'); return }
-    if (!code)        { setErr('Please select a group'); return }
     setBusy(true)
-    const { error } = await createProfile(name.trim(), code, style)
+    // If only 1 group or no groups, use its code (or default 'WC2026')
+    const groupCode = code || groups[0]?.code || 'WC2026'
+    const { error } = await createProfile(name.trim(), groupCode, style)
     if (error) { setErr(error.message); setBusy(false) }
   }
 
@@ -112,26 +113,22 @@ export default function OnboardModal() {
             <AvatarPicker seed={seed} style={style} onStyleChange={setStyle} />
           </div>
 
-          {/* Group */}
-          <div>
-            <label className="block text-sm font-medium mb-1">Select your group *</label>
-            {groups.length === 0 ? (
-              <div className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2.5 text-slate-500 text-sm animate-pulse">
-                Loading groups…
-              </div>
-            ) : (
+          {/* Group — only shown if multiple groups exist */}
+          {groups.length > 1 && (
+            <div>
+              <label className="block text-sm font-medium mb-1">Select your group *</label>
               <select value={code} onChange={e => setCode(e.target.value)}
                 className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-green-500">
                 {groups.map(g => (
-                  <option key={g.code} value={g.code}>{g.name} · {g.code}</option>
+                  <option key={g.code} value={g.code}>{g.name}</option>
                 ))}
               </select>
-            )}
-            <p className="text-slate-500 text-xs mt-1">Choose the group assigned to you</p>
-          </div>
+              <p className="text-slate-500 text-xs mt-1">Choose the group assigned to you</p>
+            </div>
+          )}
 
           {err && <p className="text-red-400 text-sm">{err}</p>}
-          <button type="submit" disabled={busy || !code} className="btn-primary w-full disabled:opacity-50">
+          <button type="submit" disabled={busy} className="btn-primary w-full disabled:opacity-50">
             {busy ? 'Joining…' : "Let's go! 🚀"}
           </button>
         </form>
