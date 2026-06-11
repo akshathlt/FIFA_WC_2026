@@ -148,7 +148,7 @@ function ThirdPlaceStep({ groupOrder, groupNames, picks, setPicks }) {
   )
 }
 
-function SpecialQuestionsStep({ answers, setAnswers }) {
+function SpecialQuestionsStep({ answers, setAnswers, allTeams }) {
   const grouped = SPECIAL_QUESTIONS.reduce((acc, q) => {
     acc[q.category] = acc[q.category] || []
     acc[q.category].push(q)
@@ -408,7 +408,7 @@ export default function Predict() {
             <h2 className="text-2xl font-bold mb-1">Step 3 — Special Questions</h2>
             <p className="text-slate-400 text-sm">Locked before kick-off. Big points for bold predictions!</p>
           </div>
-          <SpecialQuestionsStep answers={specialAnswers} setAnswers={setSpecials} />
+          <SpecialQuestionsStep answers={specialAnswers} setAnswers={setSpecials} allTeams={allTeams} />
           {error && <p className="text-red-400 text-sm mt-4">{error}</p>}
           <div className="mt-6 flex justify-between">
             <button onClick={() => setStep(1)} className="btn-secondary">← Back</button>
