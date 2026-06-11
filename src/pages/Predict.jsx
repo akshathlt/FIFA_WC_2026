@@ -5,7 +5,44 @@ import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } 
 import { CSS } from '@dnd-kit/utilities'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
-import { WC_GROUPS, GROUP_NAMES, SPECIAL_QUESTIONS, HOST_OPTIONS, TOP10_TEAMS, ALL_TEAMS, LOCK_DATE } from '../lib/data'
+import { SPECIAL_QUESTIONS, HOST_OPTIONS, TOP10_TEAMS, LOCK_DATE } from '../lib/data'
+import { fetchWithFallback } from '../lib/fetchWithFallback'
+
+const FIFA_STANDINGS = 'https://api.fifa.com/api/v3/calendar/17/285023/289273/standing?language=en&count=200'
+
+// Country code → flag emoji mapping
+const FLAG_EMOJI = {
+  MEX:'🇲🇽', RSA:'🇿🇦', KOR:'🇰🇷', CZE:'🇨🇿',
+  CAN:'🇨🇦', BIH:'🇧🇦', QAT:'🇶🇦', SUI:'🇨🇭',
+  BRA:'🇧🇷', MAR:'🇲🇦', HAI:'🇭🇹', SCO:'🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+  USA:'🇺🇸', PAR:'🇵🇾', AUS:'🇦🇺', TUR:'🇹🇷',
+  GER:'🇩🇪', CUW:'🏳️', CIV:'🇨🇮', ECU:'🇪🇨',
+  NED:'🇳🇱', JPN:'🇯🇵', SWE:'🇸🇪', TUN:'🇹🇳',
+  BEL:'🇧🇪', EGY:'🇪🇬', IRN:'🇮🇷', NZL:'🇳🇿',
+  ESP:'🇪🇸', CPV:'🇨🇻', KSA:'🇸🇦', URU:'🇺🇾',
+  FRA:'🇫🇷', SEN:'🇸🇳', IRQ:'🇮🇶', NOR:'🇳🇴',
+  ARG:'🇦🇷', ALG:'🇩🇿', AUT:'🇦🇹', JOR:'🇯🇴',
+  POR:'🇵🇹', COD:'🇨🇩', UZB:'🇺🇿', COL:'🇨🇴',
+  ENG:'🏴󠁧󠁢󠁥󠁮󠁧󠁿', CRO:'🇭🇷', GHA:'🇬🇭', PAN:'🇵🇦',
+}
+
+async function fetchGroupsFromFIFA() {
+  const data = await fetchWithFallback(FIFA_STANDINGS)
+  if (!data) return null
+
+  const groups = {}
+  for (const r of data.Results) {
+    const g = r.Group?.[0]?.Description?.replace('Group ', '') || '?'
+    if (!groups[g]) groups[g] = []
+    groups[g].push({
+      name: r.Team.ShortClubName,
+      flag: FLAG_EMOJI[r.Team.Abbreviation] || '🏳️',
+      rank: 0, // standing position not needed for drag-drop
+    })
+  }
+  // Sort each group alphabetically by initial FIFA position (they come back in order)
+  return groups
+}
 
 const EMOJIS = ['🔥','💥','⚡','🎯','👏','🤯','😱','🙌']
 const randomEmoji = () => EMOJIS[Math.floor(Math.random() * EMOJIS.length)]
@@ -73,7 +110,7 @@ function GroupCard({ groupName, teams, setTeams, locked }) {
 }
 
 function ThirdPlaceStep({ groupOrder, picks, setPicks }) {
-  const thirds = GROUP_NAMES.map(g => groupOrder[g][2])
+  const thirds = groupNames.map(g => groupOrder[g]?.[2]).filter(Boolean)
 
   const toggle = (teamName) => {
     if (picks.includes(teamName)) {
@@ -101,7 +138,7 @@ function ThirdPlaceStep({ groupOrder, picks, setPicks }) {
                 <span className="text-lg">{team.flag}</span>
                 <span className="truncate">{team.name}</span>
                 {checked && <span className="ml-auto">✓</span>}
-                <span className="text-xs text-slate-500 ml-auto">G{GROUP_NAMES[i]}</span>
+                <span className="text-xs text-slate-500 ml-auto">G{groupNames[i]}</span>
               </button>
             )
           })}
@@ -157,7 +194,7 @@ function SpecialQuestionsStep({ answers, setAnswers }) {
                   <select value={answers[q.id] || ''} onChange={e => set(q.id, e.target.value)}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-green-500">
                     <option value="">— Select a team —</option>
-                    {(q.id === 5 ? TOP10_TEAMS : ALL_TEAMS).map(t => (
+                    {(q.id === 5 ? TOP10_TEAMS : allTeams).map(t => (
                       <option key={t} value={t}>{t}</option>
                     ))}
                   </select>
@@ -181,20 +218,34 @@ export default function Predict() {
   const { player } = useAuth()
   const locked = Date.now() > LOCK_DATE
 
-  const [step, setStep]           = useState(0) // 0=groups, 1=third, 2=special, 3=done
-  const [groupOrder, setGroupOrder] = useState(() =>
-    Object.fromEntries(GROUP_NAMES.map(g => [g, [...WC_GROUPS[g]]]))
-  )
-  const [thirdPicks, setThirdPicks]   = useState([])
+  const [step, setStep]             = useState(0)
+  const [groupOrder, setGroupOrder]  = useState({})
+  const [groupNames, setGroupNames]  = useState([])
+  const [allTeams, setAllTeams]      = useState([])
+  const [loadingGroups, setLoadingGroups] = useState(true)
+  const [thirdPicks, setThirdPicks]  = useState([])
   const [specialAnswers, setSpecials] = useState({})
-  const [floaters, setFloaters]       = useState([])
-  const [saving, setSaving]           = useState(false)
-  const [saved, setSaved]             = useState(false)
-  const [error, setError]             = useState('')
+  const [floaters, setFloaters]      = useState([])
+  const [saving, setSaving]          = useState(false)
+  const [saved, setSaved]            = useState(false)
+  const [error, setError]            = useState('')
 
-  // Load existing predictions
+  // Load groups from FIFA API
   useEffect(() => {
-    if (!player) return
+    fetchGroupsFromFIFA().then(groups => {
+      if (groups) {
+        const names = Object.keys(groups).sort()
+        setGroupNames(names)
+        setGroupOrder(Object.fromEntries(names.map(g => [g, [...groups[g]]])))
+        setAllTeams(Object.values(groups).flat().map(t => t.name))
+      }
+      setLoadingGroups(false)
+    })
+  }, [])
+
+  // Load existing predictions once groups are loaded
+  useEffect(() => {
+    if (!player || groupNames.length === 0) return
     ;(async () => {
       const { data } = await supabase
         .from('group_predictions')
@@ -202,27 +253,22 @@ export default function Predict() {
         .eq('player_id', player.id)
       if (data?.length) {
         const newOrder = { ...groupOrder }
-        GROUP_NAMES.forEach(g => {
+        groupNames.forEach(g => {
           const groupData = data.filter(r => r.group_name === g).sort((a,b) => a.predicted_position - b.predicted_position)
           if (groupData.length === 4) {
-            newOrder[g] = groupData.map(r => WC_GROUPS[g].find(t => t.name === r.team_name) || { name: r.team_name, flag: '🏳️', rank: 0 })
+            newOrder[g] = groupData.map(r =>
+              groupOrder[g]?.find(t => t.name === r.team_name) || { name: r.team_name, flag: '🏳️', rank: 0 }
+            )
           }
         })
         setGroupOrder(newOrder)
       }
-      const { data: tp } = await supabase
-        .from('third_place_picks')
-        .select('team_name')
-        .eq('player_id', player.id)
+      const { data: tp } = await supabase.from('third_place_picks').select('team_name').eq('player_id', player.id)
       if (tp?.length) setThirdPicks(tp.map(r => r.team_name))
-
-      const { data: sa } = await supabase
-        .from('special_answers')
-        .select('question_id, answer')
-        .eq('player_id', player.id)
+      const { data: sa } = await supabase.from('special_answers').select('question_id, answer').eq('player_id', player.id)
       if (sa?.length) setSpecials(Object.fromEntries(sa.map(r => [r.question_id, r.answer])))
     })()
-  }, [player])
+  }, [player, groupNames.length])
 
   const addFloater = () => {
     const id = Date.now()
@@ -239,7 +285,7 @@ export default function Predict() {
     setSaving(true); setError('')
     try {
       // Save group predictions
-      const groupRows = GROUP_NAMES.flatMap(g =>
+      const groupRows = groupNames.flatMap(g =>
         groupOrder[g].map((team, i) => ({
           player_id: player.id, group_name: g, team_name: team.name, predicted_position: i + 1
         }))
@@ -281,6 +327,26 @@ export default function Predict() {
           onDone={() => setFloaters(prev => prev.filter(x => x.id !== f.id))} />
       ))}
 
+      {/* Loading groups from FIFA API */}
+      {loadingGroups && (
+        <div className="text-center py-20">
+          <div className="text-5xl animate-spin mb-4">⚽</div>
+          <p className="text-slate-400">Loading official groups from FIFA API…</p>
+        </div>
+      )}
+
+      {!loadingGroups && groupNames.length === 0 && (
+        <div className="text-center py-20">
+          <div className="text-4xl mb-4">🌐</div>
+          <p className="text-slate-400 mb-3">Could not load groups from FIFA API. Using cached data.</p>
+          <button onClick={() => { setLoadingGroups(true); fetchGroupsFromFIFA().then(groups => {
+            if (groups) { const names = Object.keys(groups).sort(); setGroupNames(names); setGroupOrder(Object.fromEntries(names.map(g => [g, [...groups[g]]]))); setAllTeams(Object.values(groups).flat().map(t => t.name)) } setLoadingGroups(false)
+          })}} className="btn-primary">Retry</button>
+        </div>
+      )}
+
+      {!loadingGroups && groupNames.length > 0 && (<>
+
       {/* Stepper */}
       <div className="flex items-center gap-2 mb-8 overflow-x-auto">
         {steps.map((s, i) => (
@@ -308,7 +374,7 @@ export default function Predict() {
             <p className="text-slate-400 text-sm">Drag teams into the order you think they'll finish. 1st = 25 pts, 2nd = 15 pts, 3rd = 10 pts, 4th = 5 pts</p>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {GROUP_NAMES.map(g => (
+            {groupNames.map(g => (
               <GroupCard key={g} groupName={g}
                 teams={groupOrder[g]}
                 setTeams={(teams) => setGroupTeams(g, teams)}
@@ -365,6 +431,7 @@ export default function Predict() {
           </div>
         </div>
       )}
+      </>)} {/* end !loadingGroups && groupNames.length > 0 */}
     </div>
   )
 }
