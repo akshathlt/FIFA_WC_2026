@@ -1,75 +1,77 @@
+// Official FIFA World Cup 2026 groups — verified from FIFA API
+// api.fifa.com/api/v3/calendar/17/285023/289273/standing
 export const WC_GROUPS = {
   A: [
-    { name: 'Mexico',        flag: '🇲🇽', rank: 15 },
-    { name: 'United States', flag: '🇺🇸', rank: 16 },
-    { name: 'Uruguay',       flag: '🇺🇾', rank: 17 },
-    { name: 'Panama',        flag: '🇵🇦', rank: 43 },
+    { name: 'Mexico',       flag: '🇲🇽', rank: 15 },
+    { name: 'South Africa', flag: '🇿🇦', rank: 66 },
+    { name: 'Korea Republic', flag: '🇰🇷', rank: 25 },
+    { name: 'Czechia',      flag: '🇨🇿', rank: 37 },
   ],
   B: [
-    { name: 'Argentina', flag: '🇦🇷', rank: 1  },
-    { name: 'Portugal',  flag: '🇵🇹', rank: 6  },
-    { name: 'Morocco',   flag: '🇲🇦', rank: 14 },
-    { name: 'Angola',    flag: '🇦🇴', rank: 62 },
+    { name: 'Canada',                  flag: '🇨🇦', rank: 48 },
+    { name: 'Bosnia and Herzegovina',  flag: '🇧🇦', rank: 65 },
+    { name: 'Qatar',                   flag: '🇶🇦', rank: 37 },
+    { name: 'Switzerland',             flag: '🇨🇭', rank: 21 },
   ],
   C: [
-    { name: 'Spain',    flag: '🇪🇸', rank: 2  },
-    { name: 'Brazil',   flag: '🇧🇷', rank: 4  },
-    { name: 'Japan',    flag: '🇯🇵', rank: 18 },
-    { name: 'Cameroon', flag: '🇨🇲', rank: 40 },
+    { name: 'Brazil',  flag: '🇧🇷', rank: 4  },
+    { name: 'Morocco', flag: '🇲🇦', rank: 14 },
+    { name: 'Haiti',   flag: '🇭🇹', rank: 83 },
+    { name: 'Scotland', flag: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', rank: 31 },
   ],
   D: [
-    { name: 'France',       flag: '🇫🇷', rank: 2  },
-    { name: 'England',      flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', rank: 5  },
-    { name: 'Australia',    flag: '🇦🇺', rank: 23 },
-    { name: 'Saudi Arabia', flag: '🇸🇦', rank: 56 },
+    { name: 'USA',       flag: '🇺🇸', rank: 16 },
+    { name: 'Paraguay',  flag: '🇵🇾', rank: 52 },
+    { name: 'Australia', flag: '🇦🇺', rank: 23 },
+    { name: 'Türkiye',   flag: '🇹🇷', rank: 27 },
   ],
   E: [
-    { name: 'Germany',     flag: '🇩🇪', rank: 12 },
-    { name: 'Belgium',     flag: '🇧🇪', rank: 3  },
-    { name: 'Serbia',      flag: '🇷🇸', rank: 33 },
-    { name: 'New Zealand', flag: '🇳🇿', rank: 97 },
+    { name: 'Germany',       flag: '🇩🇪', rank: 12 },
+    { name: 'Curaçao',       flag: '🏳️', rank: 82 },
+    { name: "Côte d'Ivoire", flag: '🇨🇮', rank: 46 },
+    { name: 'Ecuador',       flag: '🇪🇨', rank: 44 },
   ],
   F: [
     { name: 'Netherlands', flag: '🇳🇱', rank: 7  },
-    { name: 'Colombia',    flag: '🇨🇴', rank: 20 },
-    { name: 'Ecuador',     flag: '🇪🇨', rank: 44 },
-    { name: 'Senegal',     flag: '🇸🇳', rank: 19 },
+    { name: 'Japan',       flag: '🇯🇵', rank: 18 },
+    { name: 'Sweden',      flag: '🇸🇪', rank: 29 },
+    { name: 'Tunisia',     flag: '🇹🇳', rank: 28 },
   ],
   G: [
-    { name: 'Croatia',     flag: '🇭🇷', rank: 10 },
-    { name: 'South Korea', flag: '🇰🇷', rank: 25 },
-    { name: 'Chile',       flag: '🇨🇱', rank: 37 },
-    { name: 'Honduras',    flag: '🇭🇳', rank: 68 },
+    { name: 'Belgium',     flag: '🇧🇪', rank: 3  },
+    { name: 'Egypt',       flag: '🇪🇬', rank: 36 },
+    { name: 'IR Iran',     flag: '🇮🇷', rank: 20 },
+    { name: 'New Zealand', flag: '🇳🇿', rank: 97 },
   ],
   H: [
-    { name: 'Italy',       flag: '🇮🇹', rank: 9  },
-    { name: 'Switzerland', flag: '🇨🇭', rank: 21 },
-    { name: 'Poland',      flag: '🇵🇱', rank: 26 },
-    { name: 'Algeria',     flag: '🇩🇿', rank: 51 },
+    { name: 'Spain',        flag: '🇪🇸', rank: 2  },
+    { name: 'Cabo Verde',   flag: '🇨🇻', rank: 77 },
+    { name: 'Saudi Arabia', flag: '🇸🇦', rank: 56 },
+    { name: 'Uruguay',      flag: '🇺🇾', rank: 17 },
   ],
   I: [
-    { name: 'Denmark',    flag: '🇩🇰', rank: 13 },
-    { name: 'Costa Rica', flag: '🇨🇷', rank: 55 },
-    { name: 'Ghana',      flag: '🇬🇭', rank: 65 },
-    { name: 'Peru',       flag: '🇵🇪', rank: 74 },
+    { name: 'France',  flag: '🇫🇷', rank: 2  },
+    { name: 'Senegal', flag: '🇸🇳', rank: 19 },
+    { name: 'Iraq',    flag: '🇮🇶', rank: 63 },
+    { name: 'Norway',  flag: '🇳🇴', rank: 24 },
   ],
   J: [
-    { name: 'Ukraine',      flag: '🇺🇦', rank: 22 },
-    { name: 'Turkey',       flag: '🇹🇷', rank: 27 },
-    { name: 'Ivory Coast',  flag: '🇨🇮', rank: 46 },
-    { name: 'Bahrain',      flag: '🇧🇭', rank: 84 },
+    { name: 'Argentina', flag: '🇦🇷', rank: 1  },
+    { name: 'Algeria',   flag: '🇩🇿', rank: 51 },
+    { name: 'Austria',   flag: '🇦🇹', rank: 26 },
+    { name: 'Jordan',    flag: '🇯🇴', rank: 71 },
   ],
   K: [
-    { name: 'Canada',    flag: '🇨🇦', rank: 48 },
-    { name: 'Iran',      flag: '🇮🇷', rank: 20 },
-    { name: 'Nigeria',   flag: '🇳🇬', rank: 34 },
-    { name: 'Paraguay',  flag: '🇵🇾', rank: 52 },
+    { name: 'Portugal',  flag: '🇵🇹', rank: 6  },
+    { name: 'Congo DR',  flag: '🇨🇩', rank: 57 },
+    { name: 'Uzbekistan', flag: '🇺🇿', rank: 74 },
+    { name: 'Colombia',  flag: '🇨🇴', rank: 20 },
   ],
   L: [
-    { name: 'South Africa', flag: '🇿🇦', rank: 66 },
-    { name: 'Slovakia',     flag: '🇸🇰', rank: 47 },
-    { name: 'Tunisia',      flag: '🇹🇳', rank: 28 },
-    { name: 'Venezuela',    flag: '🇻🇪', rank: 58 },
+    { name: 'England',  flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', rank: 5  },
+    { name: 'Croatia',  flag: '🇭🇷', rank: 10 },
+    { name: 'Ghana',    flag: '🇬🇭', rank: 65 },
+    { name: 'Panama',   flag: '🇵🇦', rank: 43 },
   ],
 }
 
@@ -98,7 +100,7 @@ export const SPECIAL_QUESTIONS = [
 
 export const HOST_OPTIONS = ['USA', 'Mexico', 'Canada', 'They go out equally']
 
-export const TOP10_TEAMS = ['Brazil','France','Argentina','Spain','England','Portugal','Belgium','Germany','Netherlands','Croatia','Denmark','Italy']
+export const TOP10_TEAMS = ['Brazil','France','Argentina','Spain','England','Portugal','Belgium','Germany','Netherlands','Croatia','Morocco','USA']
 
 export const ALL_TEAMS = Object.values(WC_GROUPS).flat().map(t => t.name)
 
