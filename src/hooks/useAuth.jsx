@@ -46,6 +46,7 @@ export function AuthProvider({ children }) {
   const signOut = () => supabase.auth.signOut()
 
   const createProfile = async (displayName, groupCode = 'WC2026', avatarSeed = 'adventurer') => {
+    // First upsert without avatar_seed (safe if column not yet in schema cache)
     const { data, error } = await supabase
       .from('players')
       .upsert({
@@ -53,12 +54,19 @@ export function AuthProvider({ children }) {
         display_name: displayName,
         email: session.user.email,
         group_code: groupCode,
-        avatar_seed: avatarSeed,
       }, { onConflict: 'user_id' })
       .select()
       .single()
-    if (!error) setPlayer(data)
-    return { data, error }
+    if (error) return { data, error }
+
+    // Try to save avatar_seed separately — silently ignore if column not ready
+    await supabase
+      .from('players')
+      .update({ avatar_seed: avatarSeed })
+      .eq('user_id', session.user.id)
+
+    setPlayer({ ...data, avatar_seed: avatarSeed })
+    return { data: { ...data, avatar_seed: avatarSeed }, error: null }
   }
 
   return (
