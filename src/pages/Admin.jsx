@@ -109,17 +109,17 @@ function MatchResultForm({ match, onSaved }) {
 
 export default function Admin() {
   const { player } = useAuth()
-  const [matches,      setMatches]      = useState([])
-  const [players,      setPlayers]      = useState([])
-  const [settings,     setSettings]     = useState({})
-  const [msg,          setMsg]          = useState('')
-  const [tab,          setTab]          = useState('matches')
-  const [settingsSaved, setSettingsSaved] = useState(false)
+  const [matches,   setMatches]   = useState([])
+  const [players,   setPlayers]   = useState([])
+  const [msg,       setMsg]       = useState('')
+  const [tab,       setTab]       = useState('matches')
+  const [report,    setReport]    = useState(null)
+  const [loadingReport, setLoadingReport] = useState(false)
 
   const TABS = [
-    { key: 'matches',  label: 'Matches & Results', icon: '⚽' },
-    { key: 'players',  label: `Players (${players.length})`, icon: '👥' },
-    { key: 'settings', label: 'Settings',           icon: '⚙️' },
+    { key: 'matches', label: 'Matches & Results', icon: '⚽' },
+    { key: 'players', label: `Players (${players.length})`, icon: '👥' },
+    { key: 'reports', label: 'Reports', icon: '📊' },
   ]
 
   const reloadMatches = () =>
@@ -132,24 +132,69 @@ export default function Admin() {
     if (!player?.is_admin) return
     reloadMatches()
     reloadPlayers()
-    // Load app settings
-    supabase.from('app_settings').select('key, value').then(({ data }) => {
-      if (data) setSettings(Object.fromEntries(data.map(r => [r.key, r.value])))
-    })
   }, [player])
 
-  const saveSettings = async () => {
-    for (const [key, value] of Object.entries(settings)) {
-      await supabase.from('app_settings').upsert({ key, value }, { onConflict: 'key' })
-    }
-    // Inject into window so Leaderboard picks it up without reload
-    window.__TEAMS_CHANNEL_URL__   = settings.teams_channel_url || ''
-    window.__TEAMS_CHANNEL_EMAIL__ = settings.teams_channel_email || ''
-    setSettingsSaved(true)
-    setTimeout(() => setSettingsSaved(false), 2500)
-  }
+  const loadReport = async () => {
+    setLoadingReport(true)
+    const [
+      { data: allPlayers },
+      { data: groupPreds },
+      { data: matchPreds },
+      { data: specialAnswers },
+      { data: bids },
+    ] = await Promise.all([
+      supabase.from('players').select('id, display_name, email, total_pts, stage_pts'),
+      supabase.from('group_predictions').select('player_id'),
+      supabase.from('match_predictions').select('player_id, match_id'),
+      supabase.from('special_answers').select('player_id'),
+      supabase.from('bids').select('player_id, amount, pick, match_num'),
+    ])
 
-  // Sync from FIFA API
+    const totalMatches = matches.length || 72
+    const totalGroups = 12
+
+    // Per-player stats
+    const playerStats = (allPlayers || []).map(p => {
+      const groupCount  = (groupPreds || []).filter(r => r.player_id === p.id).length
+      const matchCount  = (matchPreds || []).filter(r => r.player_id === p.id).length
+      const specialCount = (specialAnswers || []).filter(r => r.player_id === p.id).length
+      const playerBids  = (bids || []).filter(r => r.player_id === p.id)
+      const totalBidAmt = playerBids.reduce((s, b) => s + b.amount, 0)
+      const groupDone   = groupCount >= totalGroups * 4
+      const matchDone   = matchCount > 0
+      const specialDone = specialCount > 0
+
+      return {
+        ...p,
+        groupCount,  matchCount, specialCount,
+        groupDone,   matchDone,  specialDone,
+        bidCount:    playerBids.length,
+        totalBidAmt,
+        allDone: groupDone && matchDone && specialDone,
+      }
+    })
+
+    // Bidding leaderboard — calculate virtual balance
+    const STARTING = 2500
+    const finishedMatches = matches.filter(m => m.home_goals != null)
+    const bidStats = (allPlayers || []).map(p => {
+      const playerBids = (bids || []).filter(b => b.player_id === p.id)
+      let balance = STARTING
+      let won = 0, lost = 0, open = 0
+      for (const bid of playerBids) {
+        const match = finishedMatches.find(m => m.match_num === bid.match_num)
+        if (!match) { open++; balance -= bid.amount; continue }
+        const actual = match.home_goals > match.away_goals ? match.home_team
+          : match.away_goals > match.home_goals ? match.away_team : 'Draw'
+        if (bid.pick === actual) { won++; balance += bid.amount }
+        else { lost++ }
+      }
+      return { id: p.id, display_name: p.display_name, balance, won, lost, open, totalBids: playerBids.length }
+    }).sort((a, b) => b.balance - a.balance)
+
+    setReport({ playerStats, bidStats })
+    setLoadingReport(false)
+  }
   const syncFromFIFA = async () => {
     setMsg('Fetching results from FIFA API…')
     const data = await fetchWithFallback(FIFA_MATCHES_URL)
@@ -233,7 +278,7 @@ export default function Admin() {
   const resetPlayerPassword = async (p) => {
     if (!window.confirm(`Send password reset email to ${p.display_name} (${p.email})?`)) return
     const { error } = await supabase.auth.resetPasswordForEmail(p.email, {
-      redirectTo: `${window.location.origin}/FIFA_WC_2026/change-password`
+      redirectTo: `${window.location.origin}/wc2026-predictor/change-password`
     })
     if (error) {
       setMsg(`Failed: ${error.message}`)
@@ -318,41 +363,124 @@ export default function Admin() {
         </div>
       )}
 
-      {/* ── Settings ── */}
-      {tab === 'settings' && (
-        <div className="card p-6 space-y-5 max-w-2xl">
-          <p className="text-slate-400 text-sm">Configure app-wide settings. Changes apply immediately without redeployment.</p>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">App Name</label>
-            <input value={settings.app_name || ''} onChange={e => setSettings(s => ({...s, app_name: e.target.value}))}
-              placeholder="FIFA WC2026 Predictor"
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-green-500" />
+      {/* ── Reports ── */}
+      {tab === 'reports' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <p className="text-slate-400 text-sm">Prediction completion status and bidding leaderboard.</p>
+            <button onClick={loadReport} disabled={loadingReport}
+              className="btn-primary !py-2 !px-5 text-sm disabled:opacity-50">
+              {loadingReport ? '⏳ Loading…' : '🔄 Generate Report'}
+            </button>
           </div>
 
-          <div className="border-t border-slate-700 pt-5">
-            <h3 className="font-bold mb-3">📢 Microsoft Teams Integration</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium mb-1">Teams Channel URL</label>
-                <input value={settings.teams_channel_url || ''} onChange={e => setSettings(s => ({...s, teams_channel_url: e.target.value}))}
-                  placeholder="https://teams.microsoft.com/l/channel/..."
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-green-500 text-xs font-mono" />
-                <p className="text-xs text-slate-500 mt-1">Paste your Teams channel deep link — used by the "Post to Teams" button on the leaderboard</p>
+          {report && (
+            <>
+              {/* Prediction Completion */}
+              <div className="card overflow-x-auto">
+                <div className="px-5 py-3 border-b border-slate-800 flex items-center gap-2">
+                  <span className="font-bold">📋 Prediction Completion</span>
+                  <span className="text-xs text-slate-500">— who has submitted what</span>
+                </div>
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-800/60">
+                    <tr>
+                      {['Player', 'Groups', 'Match Scores', 'Special Qs', 'Bids Placed', 'Status'].map(h => (
+                        <th key={h} className="text-left px-4 py-2.5 text-slate-400 text-xs uppercase">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {report.playerStats.map(p => (
+                      <tr key={p.id} className="hover:bg-slate-800/30">
+                        <td className="px-4 py-2.5 font-medium">
+                          <div>{p.display_name}</div>
+                          <div className="text-xs text-slate-500">{p.email}</div>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${p.groupDone ? 'bg-green-900/50 text-green-300' : 'bg-slate-700 text-slate-400'}`}>
+                            {p.groupDone ? '✓ Done' : `${Math.floor(p.groupCount/4)}/12 groups`}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${p.matchCount > 0 ? 'bg-green-900/50 text-green-300' : 'bg-slate-700 text-slate-400'}`}>
+                            {p.matchCount > 0 ? `✓ ${p.matchCount} matches` : '✗ None'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${p.specialDone ? 'bg-green-900/50 text-green-300' : 'bg-slate-700 text-slate-400'}`}>
+                            {p.specialDone ? `✓ ${p.specialCount} answers` : '✗ None'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-300 text-sm">{p.bidCount} bids</td>
+                        <td className="px-4 py-2.5">
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${p.allDone ? 'bg-green-700 text-white' : 'bg-yellow-900/50 text-yellow-300'}`}>
+                            {p.allDone ? '🟢 Complete' : '🟡 Partial'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {/* Summary row */}
+                <div className="px-5 py-3 border-t border-slate-800 flex gap-6 text-xs text-slate-400">
+                  <span>✅ All complete: <b className="text-white">{report.playerStats.filter(p => p.allDone).length}/{report.playerStats.length}</b></span>
+                  <span>📋 Groups done: <b className="text-white">{report.playerStats.filter(p => p.groupDone).length}</b></span>
+                  <span>⚽ Match preds: <b className="text-white">{report.playerStats.filter(p => p.matchCount > 0).length}</b></span>
+                  <span>⭐ Special Qs: <b className="text-white">{report.playerStats.filter(p => p.specialDone).length}</b></span>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Teams Channel Email</label>
-                <input value={settings.teams_channel_email || ''} onChange={e => setSettings(s => ({...s, teams_channel_email: e.target.value}))}
-                  placeholder="channel@yourorg.teams.ms"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-green-500" />
-                <p className="text-xs text-slate-500 mt-1">Channel email address for the "Email to Teams" button</p>
+
+              {/* Bidding Leaderboard */}
+              <div className="card overflow-x-auto">
+                <div className="px-5 py-3 border-b border-slate-800 flex items-center gap-2">
+                  <span className="font-bold">💰 Bidding Leaderboard</span>
+                  <span className="text-xs text-slate-500">— virtual money standings (started at €2,500)</span>
+                </div>
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-800/60">
+                    <tr>
+                      {['#', 'Player', 'Balance', 'Won', 'Lost', 'Open', 'Total Bids'].map(h => (
+                        <th key={h} className="text-left px-4 py-2.5 text-slate-400 text-xs uppercase">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {report.bidStats.map((p, i) => (
+                      <tr key={p.id} className={`hover:bg-slate-800/30 ${i === 0 ? 'bg-yellow-900/10' : ''}`}>
+                        <td className="px-4 py-2.5 font-bold text-slate-400">
+                          {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
+                        </td>
+                        <td className="px-4 py-2.5 font-medium">{p.display_name}</td>
+                        <td className="px-4 py-2.5">
+                          <span className={`font-black text-base ${p.balance >= 2500 ? 'text-green-400' : p.balance >= 2000 ? 'text-yellow-400' : 'text-red-400'}`}>
+                            €{p.balance.toLocaleString()}
+                          </span>
+                          <span className="text-xs text-slate-500 ml-1">
+                            ({p.balance >= 2500 ? '+' : ''}{(p.balance - 2500).toLocaleString()})
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-green-400 font-semibold">{p.won} 🎉</td>
+                        <td className="px-4 py-2.5 text-red-400 font-semibold">{p.lost} 💸</td>
+                        <td className="px-4 py-2.5 text-yellow-400">{p.open} ⏳</td>
+                        <td className="px-4 py-2.5 text-slate-300">{p.totalBids}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {report.bidStats.length === 0 && (
+                  <p className="text-center text-slate-500 text-sm py-6">No bids placed yet.</p>
+                )}
               </div>
+            </>
+          )}
+
+          {!report && !loadingReport && (
+            <div className="card p-12 text-center">
+              <p className="text-4xl mb-3">📊</p>
+              <p className="text-slate-400">Click "Generate Report" to load prediction and bidding stats.</p>
             </div>
-          </div>
-
-          <button onClick={saveSettings} className={`btn-primary !py-2 !px-6 ${settingsSaved ? '!bg-green-700' : ''}`}>
-            {settingsSaved ? '✅ Saved!' : 'Save Settings'}
-          </button>
+          )}
         </div>
       )}
     </div>
