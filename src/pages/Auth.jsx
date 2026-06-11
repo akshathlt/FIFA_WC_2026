@@ -33,11 +33,14 @@ export default function Auth() {
   const [err,      setErr]      = useState('')
   const [done,     setDone]     = useState(false)
 
-  const switchMode = (m) => { setMode(m); setErr(''); setDone(false) }
+  const [alreadyExists, setAlreadyExists] = useState(false)
+
+  const switchMode = (m) => { setMode(m); setErr(''); setDone(false); setAlreadyExists(false) }
 
   const submit = async (e) => {
     e.preventDefault()
     setErr('')
+    setAlreadyExists(false)
     if (!email.trim()) { setErr('Please enter your email'); return }
     setBusy(true)
     if (mode === 'forgot') {
@@ -51,9 +54,14 @@ export default function Auth() {
     if (mode === 'signup') {
       if (password.length < 6) { setErr('Password must be at least 6 characters'); setBusy(false); return }
       if (password !== confirm) { setErr('Passwords do not match'); setBusy(false); return }
-      const { error } = await signUpWithPassword(email.trim(), password)
+      const { data, error } = await signUpWithPassword(email.trim(), password)
       setBusy(false)
       if (error) { setErr(error.message); return }
+      // Supabase returns identities:[] when the email already exists
+      if (data?.user?.identities?.length === 0) {
+        setAlreadyExists(true)
+        return
+      }
       setDone(true)
     } else {
       const { error } = await signInWithPassword(email.trim(), password)
@@ -94,6 +102,21 @@ export default function Auth() {
           </div>
         )}
 
+        {alreadyExists && (
+          <div className="bg-yellow-900/40 border border-yellow-700 rounded-xl p-6">
+            <div className="text-4xl mb-3">⚠️</div>
+            <p className="font-semibold text-yellow-300">Account already exists!</p>
+            <p className="text-slate-400 text-sm mt-2">
+              An account with <strong className="text-white">{email}</strong> already exists.
+              Please sign in instead, or reset your password if you've forgotten it.
+            </p>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => switchMode('signin')} className="btn-primary flex-1">Sign In</button>
+              <button onClick={() => switchMode('forgot')} className="btn-secondary flex-1">Reset Password</button>
+            </div>
+          </div>
+        )}
+
         {done && mode === 'signup' && (
           <div className="bg-green-900/40 border border-green-700 rounded-xl p-6">
             <div className="text-4xl mb-3">📧</div>
@@ -118,7 +141,7 @@ export default function Auth() {
           </div>
         )}
 
-        {!done && (
+        {!done && !alreadyExists && (
           <form onSubmit={submit} className="space-y-4 text-left">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">Email address</label>
