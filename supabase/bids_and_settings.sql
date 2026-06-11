@@ -1,17 +1,18 @@
--- Bids table for fun bidding feature
-create table if not exists public.bids (
+-- Drop old bids table if it exists and recreate with match_num instead of match_id FK
+drop table if exists public.bids;
+
+create table public.bids (
   id         uuid primary key default uuid_generate_v4(),
   player_id  uuid references public.players(id) on delete cascade,
-  match_id   integer references public.matches(id),
-  pick       text not null,   -- home_team name, away_team name, or 'Draw'
+  match_num  integer not null,   -- FIFA match number (no FK needed, comes from FIFA API)
+  pick       text not null,      -- home team name, away team name, or 'Draw'
   amount     integer not null check (amount >= 1),
-  settled    boolean default false,
-  won        boolean,         -- null until settled
   created_at timestamptz default now(),
-  unique (player_id, match_id)
+  unique (player_id, match_num)
 );
 
 alter table public.bids enable row level security;
+
 create policy "Read own bids" on public.bids for select using (
   player_id in (select id from public.players where user_id = auth.uid())
 );
@@ -34,11 +35,10 @@ create policy "Admin manages settings" on public.app_settings for all using (
   exists (select 1 from public.players p where p.user_id = auth.uid() and p.is_admin = true)
 );
 
--- Seed default settings
 insert into public.app_settings (key, value) values
   ('teams_channel_url',   ''),
   ('teams_channel_email', ''),
   ('app_name',            'FIFA WC2026 Predictor')
 on conflict do nothing;
 
-select 'Bids + Settings tables created ✅' as status;
+select 'Bids + Settings tables ready ✅' as status;
