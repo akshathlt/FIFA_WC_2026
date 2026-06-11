@@ -109,7 +109,7 @@ function GroupCard({ groupName, teams, setTeams, locked }) {
   )
 }
 
-function ThirdPlaceStep({ groupOrder, picks, setPicks }) {
+function ThirdPlaceStep({ groupOrder, groupNames, picks, setPicks }) {
   const thirds = groupNames.map(g => groupOrder[g]?.[2]).filter(Boolean)
 
   const toggle = (teamName) => {
@@ -391,7 +391,7 @@ export default function Predict() {
 
       {step === 1 && (
         <>
-          <ThirdPlaceStep groupOrder={groupOrder} picks={thirdPicks} setPicks={setThirdPicks} />
+          <ThirdPlaceStep groupOrder={groupOrder} groupNames={groupNames} picks={thirdPicks} setPicks={setThirdPicks} />
           <div className="mt-6 flex justify-between">
             <button onClick={() => setStep(0)} className="btn-secondary">← Back</button>
             <button onClick={() => setStep(2)} disabled={thirdPicks.length !== 8}
