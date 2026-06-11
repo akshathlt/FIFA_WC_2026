@@ -39,102 +39,111 @@ export default function Home() {
     { icon: '🃏', title: 'Joker Card', desc: 'Use 3 Jokers to double your points on key matches' },
     { icon: '🏆', title: 'Special Questions', desc: 'Top scorer, champion, drama picks — big bonus points' },
     { icon: '📊', title: 'Live Leaderboard', desc: 'Real-time rankings updated as matches finish' },
-    { icon: '🥄', title: 'Wooden Spoon', desc: 'Bottom-half consolation cup — no one left behind!' },
+    { icon: '💰', title: 'Fun Bidding', desc: '€2500 virtual money — bet on matches, double or bust!' },
   ]
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-12 space-y-16">
-      {/* Hero */}
-      <div className="text-center space-y-6">
-        <div className="flex justify-center">
-          <img src="/FIFA_WC_2026/wc-logo.png" alt="FIFA World Cup 2026" className="h-28 w-auto drop-shadow-2xl" />
-        </div>
-        <h1 className="text-5xl sm:text-6xl font-black tracking-tight">
-          World Cup <span className="text-green-400">2026</span>
-        </h1>
-        <p className="text-xl text-slate-400 max-w-xl mx-auto">
-          The ultimate office prediction game. Drag teams, bet on scorelines, and claim the golden trophy.
-        </p>
+    <div className="relative min-h-screen">
+      {/* Background image */}
+      <div
+        className="fixed inset-0 -z-10 opacity-10 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: 'url(/FIFA_WC_2026/wc-logo.png)' }}
+      />
 
-        <div className="space-y-3">
-          <p className="text-slate-500 text-sm uppercase tracking-widest font-semibold">Predictions lock in</p>
-          <Countdown />
-          <p className="text-slate-500 text-xs">June 11, 2026 · 3:00 PM ET (first kick-off)</p>
-        </div>
-
-        {session ? (
-          <div className="flex flex-wrap gap-3 justify-center">
-            <Link to="/predict"    className="btn-primary">📋 Make Group Picks</Link>
-            <Link to="/matches"    className="btn-secondary">⚽ Predict Matches</Link>
-            <Link to="/leaderboard" className="btn-secondary">🏆 Leaderboard</Link>
+      <div className="max-w-5xl mx-auto px-4 py-12 space-y-16">
+        {/* Hero */}
+        <div className="text-center space-y-6">
+          <div className="flex justify-center">
+            <img src="/FIFA_WC_2026/2026_FIFA_World_Cup_emblem.svg.webp" alt="FIFA World Cup 2026" className="h-36 w-auto drop-shadow-2xl" />
           </div>
-        ) : (
-          <Link to="/auth" className="btn-primary inline-block text-lg px-8 py-4">
-            Join the game →
-          </Link>
-        )}
-      </div>
+          <h1 className="text-5xl sm:text-6xl font-black tracking-tight">
+            World Cup <span className="text-green-400">2026</span>
+          </h1>
+          <p className="text-xl text-slate-400 max-w-xl mx-auto">
+            The ultimate prediction game. Drag teams, bet on scorelines, and claim the golden trophy.
+          </p>
 
-      {/* Features grid */}
-      <div>
-        <h2 className="text-2xl font-bold text-center mb-8">How it works</h2>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {features.map(f => (
-            <div key={f.title} className="card p-5 hover:border-green-800 transition-colors">
-              <div className="text-3xl mb-3">{f.icon}</div>
-              <h3 className="font-bold text-lg mb-1">{f.title}</h3>
-              <p className="text-slate-400 text-sm">{f.desc}</p>
+          <div className="space-y-3">
+            <p className="text-slate-500 text-sm uppercase tracking-widest font-semibold">Predictions lock in</p>
+            <Countdown />
+            <p className="text-slate-500 text-xs">June 11, 2026 · 3:00 PM ET (first kick-off)</p>
+          </div>
+
+          {session ? (
+            <div className="flex flex-wrap gap-3 justify-center">
+              <Link to="/predict"     className="btn-primary">📋 Make Group Picks</Link>
+              <Link to="/matches"     className="btn-secondary">⚽ Predict Matches</Link>
+              <Link to="/leaderboard" className="btn-secondary">🏆 Leaderboard</Link>
+              <Link to="/bids"        className="btn-secondary">💰 Fun Bidding</Link>
             </div>
-          ))}
+          ) : (
+            <Link to="/auth" className="btn-primary inline-block text-lg px-8 py-4">
+              Join the game →
+            </Link>
+          )}
         </div>
-      </div>
 
-      {/* Points quick ref */}
-      <div className="card p-8">
-        <h2 className="text-2xl font-bold mb-6 text-center">⚡ Points at a glance</h2>
-        <div className="grid sm:grid-cols-2 gap-6">
-          <div className="space-y-3">
-            <h3 className="font-semibold text-green-400 uppercase text-xs tracking-widest">Group Stage</h3>
-            {[
-              ['1st place correct', 25],
-              ['2nd place correct', 15],
-              ['3rd place correct', 10],
-              ['4th place correct', 5],
-              ['Perfect group bonus', 10],
-              ['3rd place advances', 5],
-            ].map(([label, pts]) => (
-              <div key={label} className="flex justify-between text-sm">
-                <span className="text-slate-300">{label}</span>
-                <span className="font-bold text-yellow-400">{pts} pts</span>
+        {/* Features grid */}
+        <div>
+          <h2 className="text-2xl font-bold text-center mb-8">How it works</h2>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {features.map(f => (
+              <div key={f.title} className="card p-5 hover:border-green-800 transition-colors">
+                <div className="text-3xl mb-3">{f.icon}</div>
+                <h3 className="font-bold text-lg mb-1">{f.title}</h3>
+                <p className="text-slate-400 text-sm">{f.desc}</p>
               </div>
             ))}
           </div>
-          <div className="space-y-3">
-            <h3 className="font-semibold text-green-400 uppercase text-xs tracking-widest">Match Predictions</h3>
-            {[
-              ['Correct winner/draw', 2],
-              ['Correct goal difference', 3],
-              ['Exact scoreline', 5],
-              ['🃏 Joker doubles it', '×2'],
-            ].map(([label, pts]) => (
-              <div key={label} className="flex justify-between text-sm">
-                <span className="text-slate-300">{label}</span>
-                <span className="font-bold text-yellow-400">{pts}</span>
-              </div>
-            ))}
-            <div className="border-t border-slate-700 pt-3">
-              <h3 className="font-semibold text-green-400 uppercase text-xs tracking-widest mb-3">Special Questions</h3>
+        </div>
+
+        {/* Points quick ref */}
+        <div className="card p-8">
+          <h2 className="text-2xl font-bold mb-6 text-center">⚡ Points at a glance</h2>
+          <div className="grid sm:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <h3 className="font-semibold text-green-400 uppercase text-xs tracking-widest">Group Stage</h3>
               {[
-                ['World Cup winner', 10],
-                ['Runner-Up', 7],
-                ['Golden Boot', 8],
-                ['Giant-killer pick', 9],
+                ['1st place correct', 25],
+                ['2nd place correct', 15],
+                ['3rd place correct', 10],
+                ['4th place correct', 5],
+                ['Perfect group bonus', 10],
+                ['3rd place advances', 5],
               ].map(([label, pts]) => (
-                <div key={label} className="flex justify-between text-sm mt-2">
+                <div key={label} className="flex justify-between text-sm">
                   <span className="text-slate-300">{label}</span>
                   <span className="font-bold text-yellow-400">{pts} pts</span>
                 </div>
               ))}
+            </div>
+            <div className="space-y-3">
+              <h3 className="font-semibold text-green-400 uppercase text-xs tracking-widest">Match Predictions</h3>
+              {[
+                ['Correct winner/draw', 2],
+                ['Correct goal difference', 3],
+                ['Exact scoreline', 5],
+                ['🃏 Joker doubles it', '×2'],
+              ].map(([label, pts]) => (
+                <div key={label} className="flex justify-between text-sm">
+                  <span className="text-slate-300">{label}</span>
+                  <span className="font-bold text-yellow-400">{pts}</span>
+                </div>
+              ))}
+              <div className="border-t border-slate-700 pt-3">
+                <h3 className="font-semibold text-green-400 uppercase text-xs tracking-widest mb-3">Special Questions</h3>
+                {[
+                  ['World Cup winner', 10],
+                  ['Runner-Up', 7],
+                  ['Golden Boot', 8],
+                  ['Giant-killer pick', 9],
+                ].map(([label, pts]) => (
+                  <div key={label} className="flex justify-between text-sm mt-2">
+                    <span className="text-slate-300">{label}</span>
+                    <span className="font-bold text-yellow-400">{pts} pts</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

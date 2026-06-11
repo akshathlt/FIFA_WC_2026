@@ -9,6 +9,10 @@ import Leaderboard from './pages/Leaderboard'
 import Rules from './pages/Rules'
 import Admin from './pages/Admin'
 import MatchPredict from './pages/MatchPredict'
+import Fixtures from './pages/Fixtures'
+import Standings from './pages/Standings'
+import WhatsNew from './pages/WhatsNew'
+import Bids from './pages/Bids'
 import OnboardModal from './components/OnboardModal'
 import ForceChangePasswordModal from './components/ForceChangePasswordModal'
 import ChangePassword from './pages/ChangePassword'
@@ -34,15 +38,19 @@ function Inner() {
       <div className="flex flex-1 min-h-0">
         <main className="flex-1 min-w-0 overflow-y-auto">
           <Routes>
-            <Route path="/"           element={<Home />} />
-            <Route path="/auth"       element={session ? <Navigate to="/" /> : <Auth />} />
-            <Route path="/predict"    element={session ? <Predict /> : <Navigate to="/auth" />} />
-            <Route path="/matches"    element={session ? <MatchPredict /> : <Navigate to="/auth" />} />
+            <Route path="/"            element={<Home />} />
+            <Route path="/auth"        element={session ? <Navigate to="/" /> : <Auth />} />
+            <Route path="/predict"     element={session ? <Predict /> : <Navigate to="/auth" />} />
+            <Route path="/matches"     element={session ? <MatchPredict /> : <Navigate to="/auth" />} />
+            <Route path="/fixtures"    element={<Fixtures />} />
+            <Route path="/standings"   element={<Standings />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
-            <Route path="/rules"      element={<Rules />} />
-            <Route path="/admin"      element={session && player?.is_admin ? <Admin /> : <Navigate to="/" />} />
+            <Route path="/rules"       element={<Rules />} />
+            <Route path="/bids"        element={session ? <Bids /> : <Navigate to="/auth" />} />
+            <Route path="/whats-new"   element={<WhatsNew />} />
+            <Route path="/admin"       element={session && player?.is_admin ? <Admin /> : <Navigate to="/" />} />
             <Route path="/change-password" element={<ChangePassword />} />
-            <Route path="*"           element={<Navigate to="/" />} />
+            <Route path="*"            element={<Navigate to="/" />} />
           </Routes>
         </main>
         <NewsSidebar />

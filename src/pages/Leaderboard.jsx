@@ -116,7 +116,7 @@ function PlayerRow({ p, rank, isMe }) {
 function ShareCard({ rank, total, pts, name }) {
   const [copied, setCopied] = useState(false)
   const canvasRef = useRef(null)
-  const shareText = `🏆 WC2026 Predictor\nI'm ranked #${rank} out of ${total} players with ${pts} pts!\n⚽ #WorldCup2026 #WC2026\nhttps://akshathlt.github.io/FIFA_WC_2026/`
+  const shareText = `🏆 FIFA WC2026 Predictor\nI'm ranked #${rank} out of ${total} players with ${pts} pts!\n⚽ #WorldCup2026 #WC2026\nhttps://akshathlt.github.io/FIFA_WC_2026/`
   const shareUrl  = 'https://akshathlt.github.io/FIFA_WC_2026/'
 
   const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '⚽'
@@ -172,7 +172,7 @@ function ShareCard({ rank, total, pts, name }) {
     // Bottom tag
     ctx.fillStyle = '#334155'
     ctx.font = '13px Arial'
-    ctx.fillText('akshathlt.github.io/FIFA_WC_2026  ·  SAP CPIT O2C-Engineering', W/2, 295)
+    ctx.fillText('akshathlt.github.io/FIFA_WC_2026', W/2, 295)
   }
 
   // useEffect to draw
@@ -199,24 +199,30 @@ function ShareCard({ rank, total, pts, name }) {
     }
   }
 
-  const TEAMS_CHANNEL_URL = 'https://teams.microsoft.com/l/channel/19%3AnWjrn6Ws4prPrtyMii3cFJfMIBrxORaOeT7NJHt8C641%40thread.tacv2/General?groupId=2e6838e9-1bda-4b4e-9e73-0da45f801511&tenantId=42f7676c-f455-423c-82f6-dc2d99791af7'
-  const TEAMS_CHANNEL_EMAIL = 'd18e5c0b.groups.sap.com@emea.teams.ms'
+  // Teams share — URL configurable by admin via settings (stored in Supabase)
+  const TEAMS_CHANNEL_URL = window.__TEAMS_CHANNEL_URL__ || ''
+  const TEAMS_CHANNEL_EMAIL = window.__TEAMS_CHANNEL_EMAIL__ || ''
 
   const shareToTeams = async () => {
-    // Copy image first
     await copyImage()
-    // Build message
-    const msg = encodeURIComponent(`${shareText}\n\nJoin the game 👉 ${shareUrl}`)
-    // Open Teams deep link to compose a message in the channel
-    const teamsDeepLink = `https://teams.microsoft.com/l/channel/19%3AnWjrn6Ws4prPrtyMii3cFJfMIBrxORaOeT7NJHt8C641%40thread.tacv2/General?groupId=2e6838e9-1bda-4b4e-9e73-0da45f801511&tenantId=42f7676c-f455-423c-82f6-dc2d99791af7`
-    window.open(teamsDeepLink, '_blank')
+    if (TEAMS_CHANNEL_URL) {
+      window.open(TEAMS_CHANNEL_URL, '_blank')
+    } else {
+      // Generic Teams share via web
+      const msg = encodeURIComponent(`${shareText}\n\nJoin the game 👉 ${shareUrl}`)
+      window.open(`https://teams.microsoft.com/share?msgText=${msg}`, '_blank')
+    }
   }
 
   const shareToTeamsEmail = async () => {
     await copyImage()
-    const subject = encodeURIComponent(`⚽ WC2026 Predictor – I'm ranked #${rank}!`)
+    const subject = encodeURIComponent(`⚽ FIFA WC2026 Predictor – I'm ranked #${rank}!`)
     const body = encodeURIComponent(`${shareText}\n\nJoin the game: ${shareUrl}`)
-    window.location.href = `mailto:${TEAMS_CHANNEL_EMAIL}?subject=${subject}&body=${body}`
+    if (TEAMS_CHANNEL_EMAIL) {
+      window.location.href = `mailto:${TEAMS_CHANNEL_EMAIL}?subject=${subject}&body=${body}`
+    } else {
+      window.location.href = `mailto:?subject=${subject}&body=${body}`
+    }
   }
 
   const downloadImage = () => {
@@ -425,7 +431,7 @@ Points system:
 Keep predicting and climb the leaderboard! 🚀
 
 Best regards,
-CPIT O2C-Engineering – Events Team | SAP
+FIFA WC2026 Predictor
 🔗 https://akshathlt.github.io/FIFA_WC_2026/
 `)
 
@@ -435,10 +441,9 @@ CPIT O2C-Engineering – Events Team | SAP
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
 
-      {/* ── Team branding ── */}
+      {/* ── Branding ── */}
       <div className="flex items-center gap-2 mb-5">
-        <img src="/FIFA_WC_2026/sap-logo-3d.png" alt="SAP" className="h-6 w-auto" />
-        <span className="text-slate-400 text-xs font-semibold">CPIT O2C-Engineering – Events Team</span>
+        <img src="/FIFA_WC_2026/chinads.png" alt="Logo" className="h-8 w-auto" />
       </div>
 
       {/* ── Header ── */}
