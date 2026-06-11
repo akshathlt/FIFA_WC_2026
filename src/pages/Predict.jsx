@@ -317,7 +317,7 @@ export default function Predict() {
     setSaving(false)
   }
 
-  const steps = ['📋 Groups', '🔄 3rd Place', '⭐ Special', '✅ Done']
+  const steps = ['📋 Groups', '🔄 3rd Place', '⭐ Special Questions', '✅ Done']
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
