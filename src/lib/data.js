@@ -1,81 +1,81 @@
-// Official FIFA World Cup 2026 groups — verified from FIFA API
-// api.fifa.com/api/v3/calendar/17/285023/289273/standing
 export const WC_GROUPS = {
   A: [
-    { name: 'Mexico',       flag: '🇲🇽', rank: 15 },
-    { name: 'South Africa', flag: '🇿🇦', rank: 66 },
-    { name: 'Korea Republic', flag: '🇰🇷', rank: 25 },
-    { name: 'Czechia',      flag: '🇨🇿', rank: 37 },
+    { name: 'Mexico',        iso: 'mx', rank: 15 },
+    { name: 'South Africa',  iso: 'za', rank: 66 },
+    { name: 'Korea Republic',iso: 'kr', rank: 25 },
+    { name: 'Czechia',       iso: 'cz', rank: 37 },
   ],
   B: [
-    { name: 'Canada',                  flag: '🇨🇦', rank: 48 },
-    { name: 'Bosnia and Herzegovina',  flag: '🇧🇦', rank: 65 },
-    { name: 'Qatar',                   flag: '🇶🇦', rank: 37 },
-    { name: 'Switzerland',             flag: '🇨🇭', rank: 21 },
+    { name: 'Canada',                 iso: 'ca', rank: 48 },
+    { name: 'Bosnia and Herzegovina', iso: 'ba', rank: 59 },
+    { name: 'Qatar',                  iso: 'qa', rank: 58 },
+    { name: 'Switzerland',            iso: 'ch', rank: 21 },
   ],
   C: [
-    { name: 'Brazil',  flag: '🇧🇷', rank: 4  },
-    { name: 'Morocco', flag: '🇲🇦', rank: 14 },
-    { name: 'Haiti',   flag: '🇭🇹', rank: 83 },
-    { name: 'Scotland', flag: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', rank: 31 },
+    { name: 'Brazil',   iso: 'br', rank: 4  },
+    { name: 'Morocco',  iso: 'ma', rank: 14 },
+    { name: 'Haiti',    iso: 'ht', rank: 88 },
+    { name: 'Scotland', iso: 'gb-sct', rank: 35 },
   ],
   D: [
-    { name: 'USA',       flag: '🇺🇸', rank: 16 },
-    { name: 'Paraguay',  flag: '🇵🇾', rank: 52 },
-    { name: 'Australia', flag: '🇦🇺', rank: 23 },
-    { name: 'Türkiye',   flag: '🇹🇷', rank: 27 },
+    { name: 'USA',       iso: 'us', rank: 16 },
+    { name: 'Paraguay',  iso: 'py', rank: 52 },
+    { name: 'Australia', iso: 'au', rank: 23 },
+    { name: 'Türkiye',   iso: 'tr', rank: 27 },
   ],
   E: [
-    { name: 'Germany',       flag: '🇩🇪', rank: 12 },
-    { name: 'Curaçao',       flag: '🏳️', rank: 82 },
-    { name: "Côte d'Ivoire", flag: '🇨🇮', rank: 46 },
-    { name: 'Ecuador',       flag: '🇪🇨', rank: 44 },
+    { name: 'Germany',       iso: 'de', rank: 12 },
+    { name: 'Curaçao',       iso: 'cw', rank: 85 },
+    { name: "Côte d'Ivoire", iso: 'ci', rank: 46 },
+    { name: 'Ecuador',       iso: 'ec', rank: 44 },
   ],
   F: [
-    { name: 'Netherlands', flag: '🇳🇱', rank: 7  },
-    { name: 'Japan',       flag: '🇯🇵', rank: 18 },
-    { name: 'Sweden',      flag: '🇸🇪', rank: 29 },
-    { name: 'Tunisia',     flag: '🇹🇳', rank: 28 },
+    { name: 'Netherlands', iso: 'nl', rank: 7  },
+    { name: 'Japan',       iso: 'jp', rank: 18 },
+    { name: 'Sweden',      iso: 'se', rank: 24 },
+    { name: 'Tunisia',     iso: 'tn', rank: 28 },
   ],
   G: [
-    { name: 'Belgium',     flag: '🇧🇪', rank: 3  },
-    { name: 'Egypt',       flag: '🇪🇬', rank: 36 },
-    { name: 'IR Iran',     flag: '🇮🇷', rank: 20 },
-    { name: 'New Zealand', flag: '🇳🇿', rank: 97 },
+    { name: 'Belgium',     iso: 'be', rank: 3  },
+    { name: 'Egypt',       iso: 'eg', rank: 36 },
+    { name: 'IR Iran',     iso: 'ir', rank: 20 },
+    { name: 'New Zealand', iso: 'nz', rank: 97 },
   ],
   H: [
-    { name: 'Spain',        flag: '🇪🇸', rank: 2  },
-    { name: 'Cabo Verde',   flag: '🇨🇻', rank: 77 },
-    { name: 'Saudi Arabia', flag: '🇸🇦', rank: 56 },
-    { name: 'Uruguay',      flag: '🇺🇾', rank: 17 },
+    { name: 'Spain',        iso: 'es', rank: 2  },
+    { name: 'Cabo Verde',   iso: 'cv', rank: 72 },
+    { name: 'Saudi Arabia', iso: 'sa', rank: 56 },
+    { name: 'Uruguay',      iso: 'uy', rank: 17 },
   ],
   I: [
-    { name: 'France',  flag: '🇫🇷', rank: 2  },
-    { name: 'Senegal', flag: '🇸🇳', rank: 19 },
-    { name: 'Iraq',    flag: '🇮🇶', rank: 63 },
-    { name: 'Norway',  flag: '🇳🇴', rank: 24 },
+    { name: 'France',  iso: 'fr', rank: 2  },
+    { name: 'Senegal', iso: 'sn', rank: 19 },
+    { name: 'Iraq',    iso: 'iq', rank: 63 },
+    { name: 'Norway',  iso: 'no', rank: 29 },
   ],
   J: [
-    { name: 'Argentina', flag: '🇦🇷', rank: 1  },
-    { name: 'Algeria',   flag: '🇩🇿', rank: 51 },
-    { name: 'Austria',   flag: '🇦🇹', rank: 26 },
-    { name: 'Jordan',    flag: '🇯🇴', rank: 71 },
+    { name: 'Argentina', iso: 'ar', rank: 1  },
+    { name: 'Algeria',   iso: 'dz', rank: 51 },
+    { name: 'Austria',   iso: 'at', rank: 30 },
+    { name: 'Jordan',    iso: 'jo', rank: 93 },
   ],
   K: [
-    { name: 'Portugal',  flag: '🇵🇹', rank: 6  },
-    { name: 'Congo DR',  flag: '🇨🇩', rank: 57 },
-    { name: 'Uzbekistan', flag: '🇺🇿', rank: 74 },
-    { name: 'Colombia',  flag: '🇨🇴', rank: 20 },
+    { name: 'Portugal',   iso: 'pt', rank: 6  },
+    { name: 'Congo DR',   iso: 'cd', rank: 56 },
+    { name: 'Uzbekistan', iso: 'uz', rank: 69 },
+    { name: 'Colombia',   iso: 'co', rank: 20 },
   ],
   L: [
-    { name: 'England',  flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', rank: 5  },
-    { name: 'Croatia',  flag: '🇭🇷', rank: 10 },
-    { name: 'Ghana',    flag: '🇬🇭', rank: 65 },
-    { name: 'Panama',   flag: '🇵🇦', rank: 43 },
+    { name: 'England', iso: 'gb-eng', rank: 5  },
+    { name: 'Croatia', iso: 'hr',     rank: 10 },
+    { name: 'Ghana',   iso: 'gh',     rank: 65 },
+    { name: 'Panama',  iso: 'pa',     rank: 43 },
   ],
 }
 
 export const GROUP_NAMES = Object.keys(WC_GROUPS)
+
+export const FLAG_URL = (iso) => `https://flagcdn.com/w40/${iso}.png`
 
 export const SCORING = {
   pos1: 25, pos2: 15, pos3: 10, pos4: 5,
@@ -88,20 +88,22 @@ export const SCORING = {
 }
 
 export const SPECIAL_QUESTIONS = [
-  { id: 1, category: '🏆 Big Winners',   question: 'Who will win the 2026 World Cup?',                      type: 'team',   pts: 10 },
-  { id: 2, category: '🏆 Big Winners',   question: 'Which team will be the Runner-Up (lose the Final)?',    type: 'team',   pts: 7  },
-  { id: 3, category: '⚽ Goals & Players', question: 'Who will win the Golden Boot (Top Scorer)?',          type: 'text',   pts: 8  },
-  { id: 4, category: '⚽ Goals & Players', question: 'Will any player score a Hat-Trick?',                  type: 'yesno',  pts: 5  },
-  { id: 5, category: '💥 Drama & Chaos', question: 'Name ONE Top-10 FIFA team that exits the Group Stage',  type: 'team',   pts: 9  },
-  { id: 6, category: '💥 Drama & Chaos', question: 'Which host nation advances furthest?',                  type: 'host',   pts: 6  },
-  { id: 7, category: '🃏 Bonus',          question: 'Which outside-top-15 team advances furthest?',         type: 'text',   pts: 8  },
-  { id: 8, category: '🃏 Bonus',          question: 'Which team receives the most Red Cards?',              type: 'text',   pts: 6  },
+  { id: 1, category: '🏆 Big Winners',    question: 'Who will win the 2026 World Cup?',                     type: 'team',  pts: 10 },
+  { id: 2, category: '🏆 Big Winners',    question: 'Which team will be the Runner-Up (lose the Final)?',   type: 'team',  pts: 7  },
+  { id: 3, category: '⚽ Goals & Players', question: 'Who will win the Golden Boot (Top Scorer)?',          type: 'text',  pts: 8  },
+  { id: 4, category: '⚽ Goals & Players', question: 'Will any player score a Hat-Trick?',                  type: 'yesno', pts: 5  },
+  { id: 5, category: '💥 Drama & Chaos',  question: 'Name ONE Top-10 FIFA team that exits the Group Stage', type: 'team',  pts: 9  },
+  { id: 6, category: '💥 Drama & Chaos',  question: 'Which host nation advances furthest?',                 type: 'host',  pts: 6  },
+  { id: 7, category: '🃏 Bonus',           question: 'Which outside-top-15 team advances furthest?',        type: 'text',  pts: 8  },
+  { id: 8, category: '🃏 Bonus',           question: 'Which team receives the most Red Cards?',             type: 'text',  pts: 6  },
 ]
 
 export const HOST_OPTIONS = ['USA', 'Mexico', 'Canada', 'They go out equally']
 
-export const TOP10_TEAMS = ['Brazil','France','Argentina','Spain','England','Portugal','Belgium','Germany','Netherlands','Croatia','Morocco','USA']
+export const TOP10_TEAMS = ['Brazil','France','Argentina','Spain','England','Portugal','Belgium','Germany','Netherlands','Croatia','Denmark','Italy']
 
 export const ALL_TEAMS = Object.values(WC_GROUPS).flat().map(t => t.name)
 
-export const LOCK_DATE = new Date('2026-06-11T19:00:00Z') // 3pm ET = 19:00 UTC
+// Original lock: 2026-06-11T19:00:00Z
+// Extended grace period for late joiners — groups/special unlocked until Jun 14 midnight UTC
+export const LOCK_DATE = new Date('2026-06-14T00:00:00Z')

@@ -1,6 +1,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { avatarUrl } from '../lib/avatar'
+import Avatar from '../components/Avatar'
 
 const MEDALS = ['🥇','🥈','🥉']
 
@@ -72,8 +74,86 @@ function AccuracyBar({ label, pct, color, icon }) {
   )
 }
 
+function PredictionBreakdown({ playerId }) {
+  const [data, setData]       = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    Promise.all([
+      supabase.from('match_predictions').select('*').eq('player_id', playerId),
+      supabase.from('matches').select('*').not('home_goals', 'is', null).order('match_num'),
+    ]).then(([{ data: preds }, { data: matches }]) => {
+      if (!preds || !matches) { setLoading(false); return }
+      const rows = matches.map(m => {
+        const pred = preds.find(p => p.match_id === m.id)
+        if (!pred) return null
+        const realDiff = m.home_goals - m.away_goals
+        const predDiff = pred.predicted_home - pred.predicted_away
+        let base = 0
+        let breakdown = []
+        if (Math.sign(predDiff) === Math.sign(realDiff)) { base += 2; breakdown.push('✓ Correct winner (+2)') }
+        if (predDiff === realDiff && !(pred.predicted_home === m.home_goals && pred.predicted_away === m.away_goals)) {
+          base += 1; breakdown.push('✓ Correct goal diff (+1)')
+        }
+        if (pred.predicted_home === m.home_goals && pred.predicted_away === m.away_goals) {
+          base += 3; breakdown.push('🎯 Exact score (+3)')
+        }
+        const jokerBonus = pred.joker_used ? base : 0
+        if (pred.joker_used) breakdown.push(`🃏 Joker ×2 (+${base})`)
+        const total = base + jokerBonus
+        return { match: m, pred, base, total, breakdown, joker: pred.joker_used }
+      }).filter(Boolean)
+
+      const totalPts = rows.reduce((s, r) => s + r.total, 0)
+      setData({ rows, totalPts })
+      setLoading(false)
+    })
+  }, [playerId])
+
+  if (loading) return <div className="px-4 py-4 text-center text-slate-500 text-sm">Loading predictions…</div>
+  if (!data || data.rows.length === 0) return <div className="px-4 py-4 text-center text-slate-500 text-sm">No predictions for finished matches yet.</div>
+
+  return (
+    <div className="border-t border-slate-800 bg-slate-900/60">
+      <div className="px-4 py-3 flex items-center justify-between">
+        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Match Prediction Breakdown</span>
+        <span className="text-xs text-yellow-400 font-bold">{data.totalPts} pts total</span>
+      </div>
+      <div className="px-3 pb-3 space-y-2">
+        {data.rows.map(({ match: m, pred, total, breakdown, joker }) => (
+          <div key={m.id} className={`rounded-lg p-2.5 text-xs ${total > 0 ? 'bg-green-900/20 border border-green-800/40' : 'bg-slate-800/40 border border-slate-700/40'}`}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <span className="text-slate-400 shrink-0">M{m.match_num}</span>
+                <span className="font-medium truncate">{m.home_team} {m.home_goals}–{m.away_goals} {m.away_team}</span>
+                {joker && <span className="text-yellow-400 shrink-0">🃏</span>}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-slate-400">Pred: <b className="text-slate-200">{pred.predicted_home}–{pred.predicted_away}</b></span>
+                <span className={`font-black text-sm ${total > 0 ? 'text-yellow-400' : 'text-slate-600'}`}>+{total}</span>
+              </div>
+            </div>
+            {breakdown.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {breakdown.map((b, i) => (
+                  <span key={i} className="bg-green-900/50 text-green-300 px-1.5 py-0.5 rounded text-[10px] font-medium">{b}</span>
+                ))}
+              </div>
+            )}
+            {breakdown.length === 0 && (
+              <div className="mt-1 text-slate-600 text-[10px]">✗ Wrong prediction — 0 pts</div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function PlayerRow({ p, rank, isMe }) {
-  const [flash, setFlash] = useState(false)
+  const [flash,    setFlash]    = useState(false)
+  const [expanded, setExpanded] = useState(false)
+
   useEffect(() => {
     setFlash(true)
     const t = setTimeout(() => setFlash(false), 600)
@@ -81,34 +161,47 @@ function PlayerRow({ p, rank, isMe }) {
   }, [p.total_pts])
 
   const topThree = rank <= 3
+  const avatarStyle = p.avatar_seed || 'adventurer'
+  const seed = p.display_name || 'player'
+
   return (
-    <div className={`flex items-center gap-4 px-4 py-3 rounded-xl border transition-all
-      ${isMe ? 'border-green-500 bg-green-900/20' : topThree ? 'border-yellow-700/50 bg-yellow-900/10' : 'border-slate-700/50 hover:border-slate-600'}
+    <div className={`rounded-xl border overflow-hidden transition-all
+      ${isMe ? 'border-green-500' : topThree ? 'border-yellow-700/50' : 'border-slate-700/50'}
       ${flash ? 'animate-pop' : ''}`}>
-      <span className="w-8 text-lg font-black text-center">
-        {rank <= 3 ? MEDALS[rank-1] : <span className="text-slate-400 text-sm">{rank}</span>}
-      </span>
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold truncate">
-          {p.display_name}
-          {isMe && <span className="text-green-400 text-xs ml-1">(you)</span>}
-        </p>
-        <div className="flex gap-4 text-xs text-slate-500 mt-0.5">
-          <span>Matches: <b className="text-slate-300">{p.stage_pts || 0}</b></span>
-          <span>Special: <b className="text-slate-300">{p.special_pts || 0}</b></span>
+      {/* Row — clickable */}
+      <div
+        onClick={() => setExpanded(e => !e)}
+        className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors
+          ${isMe ? 'bg-green-900/20 hover:bg-green-900/30' : topThree ? 'bg-yellow-900/10 hover:bg-yellow-900/20' : 'hover:bg-slate-800/40'}`}>
+        <span className="w-8 text-lg font-black text-center flex-shrink-0">
+          {rank <= 3 ? MEDALS[rank-1] : <span className="text-slate-400 text-sm">{rank}</span>}
+        </span>
+        <Avatar style={avatarStyle} name={seed} size="md" />
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold truncate">
+            {p.display_name}
+            {isMe && <span className="text-green-400 text-xs ml-1">(you)</span>}
+          </p>
+          <div className="flex gap-4 text-xs text-slate-500 mt-0.5">
+            <span>Matches: <b className="text-slate-300">{p.stage_pts || 0}</b></span>
+            <span>Special: <b className="text-slate-300">{p.special_pts || 0}</b></span>
+          </div>
         </div>
-      </div>
-      {/* Mini bar */}
-      <div className="w-20 hidden sm:block">
-        <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-          <div className="h-full bg-yellow-500 rounded-full transition-all"
-            style={{width: `${Math.min(100, (p.total_pts || 0) / 2)}%`}} />
+        <div className="w-20 hidden sm:block">
+          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <div className="h-full bg-yellow-500 rounded-full transition-all"
+              style={{width: `${Math.min(100, (p.total_pts || 0) / 2)}%`}} />
+          </div>
         </div>
+        <div className="text-right">
+          <p className="text-xl font-black text-yellow-400">{p.total_pts || 0}</p>
+          <p className="text-xs text-slate-500">pts</p>
+        </div>
+        <span className={`text-slate-500 text-xs ml-1 transition-transform ${expanded ? 'rotate-180' : ''}`}>▼</span>
       </div>
-      <div className="text-right">
-        <p className="text-xl font-black text-yellow-400">{p.total_pts || 0}</p>
-        <p className="text-xs text-slate-500">pts</p>
-      </div>
+
+      {/* Breakdown drawer */}
+      {expanded && <PredictionBreakdown playerId={p.id} />}
     </div>
   )
 }
@@ -116,7 +209,7 @@ function PlayerRow({ p, rank, isMe }) {
 function ShareCard({ rank, total, pts, name }) {
   const [copied, setCopied] = useState(false)
   const canvasRef = useRef(null)
-  const shareText = `🏆 FIFA WC2026 Predictor\nI'm ranked #${rank} out of ${total} players with ${pts} pts!\n⚽ #WorldCup2026 #WC2026\nhttps://akshathlt.github.io/FIFA_WC_2026/`
+  const shareText = `🏆 WC2026 Predictor\nI'm ranked #${rank} out of ${total} players with ${pts} pts!\n⚽ #WorldCup2026 #WC2026\nhttps://akshathlt.github.io/FIFA_WC_2026/`
   const shareUrl  = 'https://akshathlt.github.io/FIFA_WC_2026/'
 
   const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '⚽'
@@ -172,7 +265,7 @@ function ShareCard({ rank, total, pts, name }) {
     // Bottom tag
     ctx.fillStyle = '#334155'
     ctx.font = '13px Arial'
-    ctx.fillText('akshathlt.github.io/FIFA_WC_2026', W/2, 295)
+    ctx.fillText('akshathlt.github.io/FIFA_WC_2026  ·  SAP CPIT O2C-Engineering', W/2, 295)
   }
 
   // useEffect to draw
@@ -199,30 +292,24 @@ function ShareCard({ rank, total, pts, name }) {
     }
   }
 
-  // Teams share — URL configurable by admin via settings (stored in Supabase)
-  const TEAMS_CHANNEL_URL = window.__TEAMS_CHANNEL_URL__ || ''
-  const TEAMS_CHANNEL_EMAIL = window.__TEAMS_CHANNEL_EMAIL__ || ''
+  const TEAMS_CHANNEL_URL = 'https://teams.microsoft.com/l/channel/19%3AnWjrn6Ws4prPrtyMii3cFJfMIBrxORaOeT7NJHt8C641%40thread.tacv2/General?groupId=2e6838e9-1bda-4b4e-9e73-0da45f801511&tenantId=42f7676c-f455-423c-82f6-dc2d99791af7'
+  const TEAMS_CHANNEL_EMAIL = 'd18e5c0b.groups.sap.com@emea.teams.ms'
 
   const shareToTeams = async () => {
+    // Copy image first
     await copyImage()
-    if (TEAMS_CHANNEL_URL) {
-      window.open(TEAMS_CHANNEL_URL, '_blank')
-    } else {
-      // Generic Teams share via web
-      const msg = encodeURIComponent(`${shareText}\n\nJoin the game 👉 ${shareUrl}`)
-      window.open(`https://teams.microsoft.com/share?msgText=${msg}`, '_blank')
-    }
+    // Build message
+    const msg = encodeURIComponent(`${shareText}\n\nJoin the game 👉 ${shareUrl}`)
+    // Open Teams deep link to compose a message in the channel
+    const teamsDeepLink = `https://teams.microsoft.com/l/channel/19%3AnWjrn6Ws4prPrtyMii3cFJfMIBrxORaOeT7NJHt8C641%40thread.tacv2/General?groupId=2e6838e9-1bda-4b4e-9e73-0da45f801511&tenantId=42f7676c-f455-423c-82f6-dc2d99791af7`
+    window.open(teamsDeepLink, '_blank')
   }
 
   const shareToTeamsEmail = async () => {
     await copyImage()
-    const subject = encodeURIComponent(`⚽ FIFA WC2026 Predictor – I'm ranked #${rank}!`)
+    const subject = encodeURIComponent(`⚽ WC2026 Predictor – I'm ranked #${rank}!`)
     const body = encodeURIComponent(`${shareText}\n\nJoin the game: ${shareUrl}`)
-    if (TEAMS_CHANNEL_EMAIL) {
-      window.location.href = `mailto:${TEAMS_CHANNEL_EMAIL}?subject=${subject}&body=${body}`
-    } else {
-      window.location.href = `mailto:?subject=${subject}&body=${body}`
-    }
+    window.location.href = `mailto:${TEAMS_CHANNEL_EMAIL}?subject=${subject}&body=${body}`
   }
 
   const downloadImage = () => {
@@ -334,35 +421,19 @@ export default function Leaderboard() {
   const [players, setPlayers]   = useState([])
   const [loading, setLoading]   = useState(true)
   const [lastUpdate, setLastUpdate] = useState(null)
-  const [oddsData, setOddsData] = useState(null)
+  const [oddsData, setOddsData] = useState(null) // reserved for future use
 
   const fetchPlayers = async () => {
     const { data } = await supabase
       .from('players')
-      .select('id, display_name, total_pts, stage_pts, special_pts, group_code')
+      .select('id, display_name, total_pts, stage_pts, special_pts, group_code, avatar_seed')
       .order('total_pts', { ascending: false })
     if (data) { setPlayers(data); setLastUpdate(new Date()) }
     setLoading(false)
   }
 
-  // Fetch world predictions (free ESPN odds / public data)
-  const fetchWorldOdds = async () => {
-    try {
-      const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard')
-      const json = await res.json()
-      const events = json.events || []
-      // Count completed events and compute a mock "world accuracy" from public picks
-      const completed = events.filter(e => e.competitions?.[0]?.status?.type?.completed)
-      if (completed.length > 0) {
-        // ESPN doesn't have public pick % but we simulate from odds for now
-        setOddsData({ completed: completed.length, total: events.length })
-      }
-    } catch(_) {}
-  }
-
   useEffect(() => {
     fetchPlayers()
-    fetchWorldOdds()
     const channel = supabase
       .channel('leaderboard')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, fetchPlayers)
@@ -386,64 +457,150 @@ export default function Leaderboard() {
   const myMatchPts   = myData?.stage_pts || 0
   const myAccuracy   = totalMatches > 0 ? Math.round((myMatchPts / (totalMatches * 5)) * 100) : 0
   // "World" average — placeholder until real data; ESPN match data used when available
-  const worldAvgAcc  = oddsData ? 42 : 38
+  const worldAvgAcc = 38  // baseline placeholder until enough results accumulate
 
   const sendDailyEmail = () => {
     const top5 = players.slice(0, 5)
     const today = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
-    const medals = ['🥇','🥈','🥉','4️⃣','5️⃣']
     const totalPlayers = players.length
+    const medals = ['🥇','🥈','🥉','4️⃣','5️⃣']
+    const gap = top5.length > 1 ? (top5[0]?.total_pts||0) - (top5[1]?.total_pts||0) : 0
+    const dayNum = Math.floor((Date.now() - new Date('2026-06-11T19:00:00Z').getTime()) / 86400000) + 1
+
+    // Pick theme based on match day
+    const themes = [
+      { bg:'#0a4f1a', accent:'#22c55e', header:'⚽ Day ' + dayNum + ' — The Race Heats Up!' },
+      { bg:'#1a0a2e', accent:'#a855f7', header:'🌙 Evening Update — Day ' + dayNum },
+      { bg:'#1a0f00', accent:'#f59e0b', header:'🔥 Matchday ' + dayNum + ' Standings' },
+      { bg:'#0a1a3e', accent:'#3b82f6', header:'⚡ Day ' + dayNum + ' Leaderboard' },
+    ]
+    const theme = themes[dayNum % themes.length]
 
     const rankRows = top5.map((p, i) =>
-      `${medals[i]}  #${i+1}  ${p.display_name.padEnd(20,' ')}  ${p.total_pts} pts  (Matches: ${p.stage_pts||0} | Special: ${p.special_pts||0})`
-    ).join('\n')
+      `<tr>
+        <td style="padding:12px 16px;font-size:22px;width:40px;">${medals[i]}</td>
+        <td style="padding:12px 8px;font-size:15px;font-weight:700;color:#fff;">${p.display_name}</td>
+        <td style="padding:12px 16px;text-align:right;font-size:20px;font-weight:900;color:${theme.accent};">${p.total_pts} pts</td>
+      </tr>`
+    ).join('<tr><td colspan="3" style="border-bottom:1px solid rgba(255,255,255,0.08);padding:0;"></td></tr>')
 
-    const gapRow = top5.length > 1
-      ? `\n📊 Gap between 1st and 2nd: ${(top5[0]?.total_pts||0) - (top5[1]?.total_pts||0)} pts`
-      : ''
+    const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0d0d0d;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0d0d0d;padding:20px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
 
-    const subject = encodeURIComponent(`⚽ WC2026 Predictor – Daily Standings Update | ${today}`)
-    const body = encodeURIComponent(
-`Hi Team,
+        <!-- Header with gradient -->
+        <tr>
+          <td style="background:linear-gradient(135deg,${theme.bg} 0%,#0d0d0d 100%);padding:40px 32px 32px;text-align:center;border-bottom:3px solid ${theme.accent};">
+            <div style="font-size:56px;margin-bottom:12px;">⚽</div>
+            <h1 style="margin:0;font-size:28px;font-weight:900;color:#fff;letter-spacing:-0.5px;">${theme.header}</h1>
+            <p style="margin:8px 0 0;color:rgba(255,255,255,0.6);font-size:14px;">${today}</p>
+          </td>
+        </tr>
 
-Here is your daily WC2026 Predictor standings update for ${today}!
+        <!-- Leaderboard -->
+        <tr>
+          <td style="background:#111;padding:0;">
+            <div style="padding:24px 32px 8px;">
+              <p style="margin:0;font-size:11px;font-weight:700;letter-spacing:2px;color:rgba(255,255,255,0.4);text-transform:uppercase;">🏆 Top 5 Leaderboard</p>
+            </div>
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+              ${rankRows}
+            </table>
+            <div style="padding:16px 32px;display:flex;gap:24px;">
+              <span style="font-size:13px;color:rgba(255,255,255,0.5);">📊 Gap 1st→2nd: <b style="color:#fff;">${gap} pts</b></span>
+              <span style="font-size:13px;color:rgba(255,255,255,0.5);">👥 Players: <b style="color:#fff;">${totalPlayers}</b></span>
+            </div>
+          </td>
+        </tr>
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🏆 TOP 5 LEADERBOARD
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        <!-- CTA Button -->
+        <tr>
+          <td style="background:#111;padding:8px 32px 32px;text-align:center;">
+            <a href="https://akshathlt.github.io/FIFA_WC_2026/leaderboard"
+               style="display:inline-block;background:${theme.accent};color:#000;font-weight:900;font-size:15px;padding:14px 36px;border-radius:50px;text-decoration:none;letter-spacing:0.5px;">
+              🏆 View Full Leaderboard →
+            </a>
+          </td>
+        </tr>
 
-${rankRows}
-${gapRow}
+        <!-- Points reminder -->
+        <tr>
+          <td style="background:#0d0d0d;padding:24px 32px;border-top:1px solid #222;">
+            <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;">🎯 Points System</p>
+            <table width="100%" cellpadding="0" cellspacing="0">
+              ${[['Correct winner/draw','2 pts'],['Correct goal diff','3 pts'],['Exact scoreline','5 pts'],['🃏 Joker card','×2 all pts']].map(([l,p])=>
+                `<tr>
+                  <td style="padding:4px 0;font-size:13px;color:rgba(255,255,255,0.7);">${l}</td>
+                  <td style="padding:4px 0;font-size:13px;font-weight:700;color:${theme.accent};text-align:right;">${p}</td>
+                </tr>`
+              ).join('')}
+            </table>
+          </td>
+        </tr>
 
-📌 Total participants: ${totalPlayers}
-🔗 Full leaderboard: https://akshathlt.github.io/FIFA_WC_2026/leaderboard
+        <!-- Upcoming reminder -->
+        <tr>
+          <td style="background:#0d0d0d;padding:0 32px 24px;text-align:center;">
+            <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:16px;">
+              <p style="margin:0;font-size:14px;color:rgba(255,255,255,0.8);">
+                ⏰ Each match locks <b style="color:${theme.accent};">1 hour before kick-off</b><br>
+                Upcoming matches are still open — predict now!
+              </p>
+              <a href="https://akshathlt.github.io/FIFA_WC_2026/matches"
+                 style="display:inline-block;margin-top:12px;background:rgba(255,255,255,0.1);color:#fff;font-weight:700;font-size:13px;padding:10px 24px;border-radius:50px;text-decoration:none;">
+                ⚽ Predict Matches
+              </a>
+            </div>
+          </td>
+        </tr>
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        <!-- Footer -->
+        <tr>
+          <td style="background:#080808;padding:20px 32px;text-align:center;border-top:1px solid #1a1a1a;">
+            <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.3);">
+              FIFA World Cup 2026 Predictor &nbsp;·&nbsp;
+              <a href="https://akshathlt.github.io/FIFA_WC_2026/" style="color:${theme.accent};text-decoration:none;">Open App</a>
+            </p>
+          </td>
+        </tr>
 
-🎯 Reminder: Submit your match predictions before each kick-off to keep earning points!
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
 
-Points system:
-  • Correct winner/draw  → 2 pts
-  • Correct goal diff    → 3 pts
-  • Exact scoreline      → 5 pts
-  • 🃏 Joker card         → ×2 multiplier
+    // Open as data URI in new tab so user can copy-paste to Outlook
+    const blob = new Blob([html], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank')
 
-Keep predicting and climb the leaderboard! 🚀
+    // Also open mailto as fallback
+    const subject = encodeURIComponent(`⚽ WC2026 Predictor – Daily Standings | ${today}`)
+    const textBody = encodeURIComponent(
+`${theme.header} — ${today}
 
-Best regards,
-FIFA WC2026 Predictor
-🔗 https://akshathlt.github.io/FIFA_WC_2026/
-`)
+${top5.map((p,i)=>`${medals[i]} #${i+1} ${p.display_name} — ${p.total_pts} pts`).join('\n')}
 
-    window.location.href = `mailto:?subject=${subject}&body=${body}`
+Gap: ${gap} pts · Total players: ${totalPlayers}
+Full leaderboard: https://akshathlt.github.io/FIFA_WC_2026/leaderboard
+
+⚽ Predict upcoming matches: https://akshathlt.github.io/FIFA_WC_2026/matches`)
+
+    setTimeout(() => { window.location.href = `mailto:?subject=${subject}&body=${textBody}` }, 500)
   }
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
 
-      {/* ── Branding ── */}
+      {/* ── Team branding ── */}
       <div className="flex items-center gap-2 mb-5">
-        <img src="/FIFA_WC_2026/chinads.png" alt="Logo" className="h-8 w-auto" />
+        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAYAAAByDd+UAAAAe0lEQVR4AWNwL/ChKx4iFo5aOGohQ95bRhCmsuEIs0t+s6NaWPBpBRD/pxnOfpaHbuFcWltGBwsRltHBQoRl9LEw82EIyFw6WIiwjA4WIiyjg4UIy+hgIcIyOliIsIw+FiZfcyTWIgqKNoRltC684WpH68NRC6mKRy0EAHBbTni0yjioAAAAAElFTkSuQmCC" alt="SAP" className="h-6 w-auto" />
+        <span className="text-slate-400 text-xs font-semibold">CPIT O2C-Engineering – Events Team</span>
       </div>
 
       {/* ── Header ── */}
@@ -544,5 +701,3 @@ FIFA WC2026 Predictor
     </div>
   )
 }
-
-
