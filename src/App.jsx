@@ -27,7 +27,7 @@ function Inner() {
   if (typeof window !== 'undefined') {
     const hash = window.location.hash
     if (hash.includes('type=recovery') && location.pathname !== '/change-password') {
-      window.location.replace('/FIFA_WC_2026/change-password' + hash)
+      window.location.replace('/wc2026-predictor/change-password' + hash)
       return null
     }
   }

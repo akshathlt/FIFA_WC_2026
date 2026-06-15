@@ -19,25 +19,27 @@ export function AuthProvider({ children }) {
       .from('players')
       .select('*')
       .eq('user_id', session.user.id)
-      .maybeSingle()
+      .maybeSingle()                        // returns null (not 406) when no row exists
       .then(({ data }) => setPlayer(data))
   }, [session])
 
-  const signInWithEmail = (email) =>
-    supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${window.location.origin}/FIFA_WC_2026/` } })
+  const signInWithEmail = (email) => {
+    const isGH = window.location.hostname.includes('github.io')
+    const redirectTo = isGH
+      ? `${window.location.origin}/wc2026-predictor/`
+      : `${window.location.origin}/`
+    return supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } })
+  }
 
   const signInWithPassword = (email, password) =>
     supabase.auth.signInWithPassword({ email, password })
 
   const signUpWithPassword = (email, password) =>
-    supabase.auth.signUp({
-      email, password,
-      options: { emailRedirectTo: `${window.location.origin}/FIFA_WC_2026/` }
-    })
+    supabase.auth.signUp({ email, password })
 
   const resetPassword = (email) =>
     supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/FIFA_WC_2026/change-password`
+      redirectTo: `${window.location.origin}/wc2026-predictor/change-password`
     })
 
   const updatePassword = (newPassword) =>
@@ -45,8 +47,8 @@ export function AuthProvider({ children }) {
 
   const signOut = () => supabase.auth.signOut()
 
-  const createProfile = async (displayName, groupCode = 'WC2026', avatarSeed = 'adventurer') => {
-    // First upsert without avatar_seed (safe if column not yet in schema cache)
+  const createProfile = async (displayName, groupCode = 'O2C_WC26', avatarSeed = 'adventurer') => {
+    const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Berlin'
     const { data, error } = await supabase
       .from('players')
       .upsert({
@@ -54,23 +56,27 @@ export function AuthProvider({ children }) {
         display_name: displayName,
         email: session.user.email,
         group_code: groupCode,
+        avatar_seed: avatarSeed,
+        timezone: browserTz,
       }, { onConflict: 'user_id' })
       .select()
       .single()
-    if (error) return { data, error }
+    if (!error) setPlayer(data)
+    return { data, error }
+  }
 
-    // Try to save avatar_seed separately — silently ignore if column not ready
-    await supabase
+  const updateTimezone = async (tz) => {
+    const { data, error } = await supabase
       .from('players')
-      .update({ avatar_seed: avatarSeed })
+      .update({ timezone: tz })
       .eq('user_id', session.user.id)
-
-    setPlayer({ ...data, avatar_seed: avatarSeed })
-    return { data: { ...data, avatar_seed: avatarSeed }, error: null }
+      .select().single()
+    if (!error) setPlayer(data)
+    return { data, error }
   }
 
   return (
-    <AuthContext.Provider value={{ session, player, setPlayer, signInWithEmail, signInWithPassword, signUpWithPassword, resetPassword, updatePassword, signOut, createProfile }}>
+    <AuthContext.Provider value={{ session, player, setPlayer, signInWithEmail, signInWithPassword, signUpWithPassword, resetPassword, updatePassword, signOut, createProfile, updateTimezone }}>
       {children}
     </AuthContext.Provider>
   )

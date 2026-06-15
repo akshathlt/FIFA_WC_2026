@@ -89,7 +89,7 @@ function LockCountdown({ match }) {
   )
 }
 
-function MatchCard({ match, prediction, onSave, locked }) {
+function MatchCard({ match, prediction, onSave, locked, jokersLeft = 3 }) {
   const [home,          setHome]          = useState(prediction?.predicted_home ?? '')
   const [away,          setAway]          = useState(prediction?.predicted_away ?? '')
   const [joker,         setJoker]         = useState(prediction?.joker_used ?? false)
@@ -161,7 +161,7 @@ function MatchCard({ match, prediction, onSave, locked }) {
       {/* Knockout draw — penalty winner picker */}
       {knockout && !hasResult && !isLocked && isDraw && home !== '' && away !== '' && (
         <div className="mb-3 p-2 bg-purple-900/20 border border-purple-700/40 rounded-lg">
-          <p className="text-xs text-purple-300 font-semibold mb-1.5">🥅 It's a draw — who wins on penalties? (+5 pts)</p>
+          <p className="text-xs text-purple-300 font-semibold mb-1.5">🥅 It's a draw — who wins on penalties? <span className="text-yellow-300">(+10 pts if correct!)</span></p>
           <div className="flex gap-2">
             <button onClick={() => setPenWinner(match.home_team)}
               className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all
@@ -205,10 +205,11 @@ function MatchCard({ match, prediction, onSave, locked }) {
       {!isLocked && !hasResult && (
         <div className="flex items-center gap-3">
           <button onClick={() => setJoker(j => !j)}
-            title="Double your points for this match"
+            disabled={!joker && jokersLeft <= 0}
+            title={!joker && jokersLeft <= 0 ? 'No jokers left!' : 'Double your points for this match'}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all
-              ${joker ? 'border-yellow-500 bg-yellow-900/30 text-yellow-300' : 'border-slate-700 hover:border-slate-500 text-slate-400'}`}>
-            🃏 {joker ? 'JOKER ON' : 'Use Joker'}
+              ${joker ? 'border-yellow-500 bg-yellow-900/30 text-yellow-300' : jokersLeft <= 0 ? 'border-slate-800 text-slate-600 cursor-not-allowed' : 'border-slate-700 hover:border-slate-500 text-slate-400'}`}>
+            🃏 {joker ? 'JOKER ON' : jokersLeft <= 0 ? 'No jokers' : 'Use Joker'}
           </button>
           <button onClick={save} disabled={saving || home === '' || away === ''}
             className={`ml-auto px-4 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-40
@@ -228,17 +229,16 @@ export default function MatchPredict() {
   const { player } = useAuth()
   const [matches, setMatches] = useState([])
   const [preds, setPreds]     = useState({})
-  const [jokersLeft, setJokersLeft] = useState(3)
-  // Per-match lock: locks 1 hour before each match's own kick-off
-  // Global lock only used as final fallback
-  const GLOBAL_LOCK = new Date('2026-07-19T23:00:00Z') // after the Final
+  const [jokersLeft,   setJokersLeft]   = useState(3)
+  const [koJokersLeft, setKoJokersLeft] = useState(3)
+
+  const GLOBAL_LOCK = new Date('2026-07-19T23:00:00Z')
 
   const isMatchLocked = (match) => {
     if (match.locked) return true
     if (!match.match_date) return false
-    // Build UTC kick-off from match_date + match_time
     const kickoff = new Date(`${match.match_date}T${match.match_time || '00:00'}:00Z`)
-    return Date.now() > kickoff.getTime() - 60 * 60 * 1000 // lock 1hr before
+    return Date.now() > kickoff.getTime() - 60 * 60 * 1000
   }
 
   const locked = Date.now() > GLOBAL_LOCK
@@ -248,18 +248,22 @@ export default function MatchPredict() {
     Promise.all([
       supabase.from('matches').select('*').order('match_num'),
       supabase.from('match_predictions').select('*').eq('player_id', player.id),
-      supabase.from('players').select('jokers_left').eq('id', player.id).single(),
+      supabase.from('players').select('jokers_left, knockout_jokers_left').eq('id', player.id).single(),
     ]).then(([{ data: m }, { data: p }, { data: pl }]) => {
       if (m) setMatches(m)
       if (p) setPreds(Object.fromEntries(p.map(r => [r.match_id, r])))
-      if (pl) setJokersLeft(pl.jokers_left ?? 3)
+      if (pl) {
+        setJokersLeft(pl.jokers_left ?? 3)
+        setKoJokersLeft(pl.knockout_jokers_left ?? 3)
+      }
     })
   }, [player])
 
-  const saveMatch = async (matchId, home, away, jokerUsed, penWinner) => {
+  const saveMatch = async (matchId, home, away, jokerUsed, penWinner, isKO) => {
     const prev = preds[matchId]
     const wasJoker = prev?.joker_used ?? false
-    if (jokerUsed && !wasJoker && jokersLeft <= 0) return
+    const availableJokers = isKO ? koJokersLeft : jokersLeft
+    if (jokerUsed && !wasJoker && availableJokers <= 0) return
 
     const row = {
       player_id: player.id, match_id: matchId,
@@ -272,9 +276,15 @@ export default function MatchPredict() {
 
     if (jokerUsed !== wasJoker) {
       const delta = jokerUsed ? -1 : 1
-      const newCount = Math.max(0, jokersLeft + delta)
-      await supabase.from('players').update({ jokers_left: newCount }).eq('id', player.id)
-      setJokersLeft(newCount)
+      if (isKO) {
+        const newCount = Math.max(0, koJokersLeft + delta)
+        await supabase.from('players').update({ knockout_jokers_left: newCount }).eq('id', player.id)
+        setKoJokersLeft(newCount)
+      } else {
+        const newCount = Math.max(0, jokersLeft + delta)
+        await supabase.from('players').update({ jokers_left: newCount }).eq('id', player.id)
+        setJokersLeft(newCount)
+      }
     }
   }
 
@@ -287,26 +297,123 @@ export default function MatchPredict() {
 
   const stageOrder = ['A','B','C','D','E','F','G','H','I','J','K','L','r32','qf','sf','3rd','final']
   const sortedGroups = Object.entries(grouped).sort(([a],[b]) => stageOrder.indexOf(a) - stageOrder.indexOf(b))
-
   const stageLabel = { r32:'Round of 16', qf:'Quarter-Finals', sf:'Semi-Finals', '3rd':'3rd Place Play-off', final:'🏆 World Cup Final' }
+  const hasKnockoutMatches = sortedGroups.some(([g]) => isKnockout(g))
+
+  // ── View state ──
+  const [view, setView]           = useState('date')   // 'date' | 'group' | 'mypicks'
+  const [dateFilter, setDateFilter] = useState('all')  // 'all' | 'today' | 'tomorrow' | 'week'
+
+  // ── Helpers ──
+  const matchDate = (m) => m.match_date ? new Date(m.match_date) : null
+  const isToday    = (m) => { const d = matchDate(m); if (!d) return false; const t = new Date(); return d.toDateString() === t.toDateString() }
+  const isTomorrow = (m) => { const d = matchDate(m); if (!d) return false; const t = new Date(); t.setDate(t.getDate()+1); return d.toDateString() === t.toDateString() }
+  const isThisWeek = (m) => { const d = matchDate(m); if (!d) return false; const now = Date.now(); return d.getTime() >= now && d.getTime() <= now + 7*86400000 }
+  const hasResult  = (m) => m.home_goals != null
+  const myPts      = (m) => { const p = preds[m.id]; return p ? (p.total_pts||0)+(p.penalty_pts||0) : 0 }
+  const predStatus = (m) => {
+    const p = preds[m.id]
+    if (!p) return 'none'
+    if (!hasResult(m)) return 'pending'
+    if (myPts(m) > 0) return 'win'
+    return 'miss'
+  }
+
+  // ── Filter matches ──
+  const applyDateFilter = (ms) => {
+    if (dateFilter === 'today')    return ms.filter(isToday)
+    if (dateFilter === 'tomorrow') return ms.filter(isTomorrow)
+    if (dateFilter === 'week')     return ms.filter(isThisWeek)
+    return ms
+  }
+
+  // By date — group matches by date string
+  const byDate = () => {
+    const filtered = applyDateFilter(matches)
+    const map = {}
+    filtered.forEach(m => {
+      const key = m.match_date || 'TBD'
+      if (!map[key]) map[key] = []
+      map[key].push(m)
+    })
+    return Object.entries(map).sort(([a],[b]) => a.localeCompare(b))
+  }
+
+  // My picks — only matches with a prediction
+  const myPickMatches = () => applyDateFilter(matches).filter(m => preds[m.id])
+
+  // Card border color based on result
+  const cardBorder = (m) => {
+    const s = predStatus(m)
+    if (s === 'win')  return 'border-green-600/60 bg-green-900/10'
+    if (s === 'miss') return 'border-red-700/50 bg-red-900/10'
+    if (s === 'pending') return 'border-yellow-700/40'
+    return ''
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-6">
+
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-3xl font-black mb-1">⚽ Match Predictions</h1>
           <p className="text-slate-400 text-sm">Exact = 5 pts · Right diff = 3 pts · Right winner = 2 pts</p>
-          <p className="text-slate-500 text-xs mt-0.5">🟣 Knockout draw = +5 pts · Correct penalties = +5 pts</p>
+          <p className="text-slate-500 text-xs mt-0.5">🟣 Knockout draw = +5 pts · Correct penalties = +10 pts</p>
         </div>
-        <div className="text-center card px-4 py-3">
-          <div className="text-2xl font-black text-yellow-400">{jokersLeft}/3</div>
-          <div className="text-xs text-slate-400">Jokers left 🃏</div>
+        <div className="flex gap-2">
+          <div className="text-center card px-3 py-2">
+            <div className="text-xl font-black text-yellow-400">{jokersLeft}/3</div>
+            <div className="text-[10px] text-slate-400">Group 🃏</div>
+          </div>
+          <div className="text-center card px-3 py-2 border-purple-700/50">
+            <div className="text-xl font-black text-purple-300">{koJokersLeft}/3</div>
+            <div className="text-[10px] text-slate-400">Knockout 🃏</div>
+          </div>
         </div>
       </div>
 
-      {locked && (
-        <div className="mb-6 bg-red-900/30 border border-red-700 rounded-xl p-4 text-red-300 text-sm font-semibold text-center">
-          🔒 Tournament is over — predictions are fully locked.
+      {/* ── View Tabs ── */}
+      <div className="flex rounded-xl overflow-hidden border border-slate-700 mb-3">
+        {[
+          { id: 'date',    label: '📅 By Date'   },
+          { id: 'group',   label: '📋 By Group'  },
+          { id: 'mypicks', label: '⚽ My Picks'  },
+        ].map(t => (
+          <button key={t.id} onClick={() => setView(t.id)}
+            className={`flex-1 py-2 text-xs font-semibold transition-colors
+              ${view === t.id ? 'bg-green-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Date Filter ── */}
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {[
+          { id: 'all',      label: 'All Dates' },
+          { id: 'today',    label: 'Today'     },
+          { id: 'tomorrow', label: 'Tomorrow'  },
+          { id: 'week',     label: 'This Week' },
+        ].map(f => (
+          <button key={f.id} onClick={() => setDateFilter(f.id)}
+            className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all
+              ${dateFilter === f.id ? 'bg-slate-200 text-slate-900 border-slate-200' : 'border-slate-700 text-slate-400 hover:border-slate-500'}`}>
+            {f.label}
+          </button>
+        ))}
+        {/* Legend */}
+        <div className="ml-auto flex items-center gap-3 text-xs text-slate-500">
+          <span><span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1" />Won pts</span>
+          <span><span className="inline-block w-2 h-2 rounded-full bg-red-500 mr-1" />Missed</span>
+          <span><span className="inline-block w-2 h-2 rounded-full bg-yellow-500 mr-1" />Predicted</span>
+        </div>
+      </div>
+
+      {/* ── Knockout banner ── */}
+      {hasKnockoutMatches && (
+        <div className="mb-4 bg-purple-900/20 border border-purple-700/50 rounded-xl p-3">
+          <p className="text-purple-200 font-bold text-xs mb-1">🏆 Knockout Stage — Draw = +5 pts · Correct penalties = +10 pts · Joker doubles all</p>
         </div>
       )}
 
@@ -316,27 +423,114 @@ export default function MatchPredict() {
         </div>
       )}
 
-      {sortedGroups.length === 0 ? (
+      {matches.length === 0 ? (
         <div className="card p-12 text-center">
           <p className="text-5xl mb-4">📋</p>
           <p className="text-xl font-bold mb-2">No matches loaded yet</p>
           <p className="text-slate-400 text-sm">Ask the admin to load the match schedule.</p>
         </div>
       ) : (
-        sortedGroups.map(([group, ms]) => (
-          <div key={group} className="mb-8">
-            <h2 className={`text-lg font-bold mb-3 ${isKnockout(group) ? 'text-purple-300' : 'text-slate-300'}`}>
-              {stageLabel[group] || `Group ${group}`}
-            </h2>
-            <div className="grid sm:grid-cols-2 gap-3">
-              {ms.map(m => (
-                <MatchCard key={m.id} match={m} prediction={preds[m.id]}
-                  onSave={saveMatch} locked={isMatchLocked(m)} />
+        <>
+          {/* ══ BY DATE VIEW ══ */}
+          {view === 'date' && (
+            <div>
+              {byDate().length === 0 ? (
+                <div className="card p-8 text-center text-slate-400">No matches for selected filter.</div>
+              ) : byDate().map(([date, ms]) => (
+                <div key={date} className="mb-6">
+                  <div className="flex items-center gap-3 mb-3">
+                    <h2 className="text-base font-bold text-slate-200">
+                      {date === 'TBD' ? '📅 TBD' : new Date(date + 'T12:00:00').toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'short' })}
+                    </h2>
+                    <div className="flex-1 h-px bg-slate-800" />
+                    <span className="text-xs text-slate-500">{ms.length} match{ms.length > 1 ? 'es' : ''}</span>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {ms.map(m => (
+                      <div key={m.id} className={`rounded-xl border overflow-hidden ${cardBorder(m)} ${jokerCheck(m)}`}>
+                        <MatchCard match={m} prediction={preds[m.id]}
+                          onSave={(matchId, home, away, joker, pen) => saveMatch(matchId, home, away, joker, pen, isKnockout(m.stage))}
+                          locked={isMatchLocked(m)}
+                          jokersLeft={isKnockout(m.stage) ? koJokersLeft : jokersLeft} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
-          </div>
-        ))
+          )}
+
+          {/* ══ BY GROUP VIEW ══ */}
+          {view === 'group' && (
+            <div>
+              {sortedGroups.map(([group, ms]) => {
+                const filtered = applyDateFilter(ms)
+                if (filtered.length === 0) return null
+                return (
+                  <div key={group} className="mb-8">
+                    <h2 className={`text-lg font-bold mb-3 flex items-center gap-2 ${isKnockout(group) ? 'text-purple-300' : 'text-slate-300'}`}>
+                      {stageLabel[group] || `Group ${group}`}
+                      {isKnockout(group) && <span className="text-xs bg-purple-700/40 text-purple-300 px-2 py-0.5 rounded-full font-normal">Bonus active</span>}
+                    </h2>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      {filtered.map(m => (
+                        <div key={m.id} className={`rounded-xl border overflow-hidden ${cardBorder(m)}`}>
+                          <MatchCard match={m} prediction={preds[m.id]}
+                            onSave={(matchId, home, away, joker, pen) => saveMatch(matchId, home, away, joker, pen, isKnockout(m.stage))}
+                            locked={isMatchLocked(m)}
+                            jokersLeft={isKnockout(m.stage) ? koJokersLeft : jokersLeft} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* ══ MY PICKS VIEW ══ */}
+          {view === 'mypicks' && (
+            <div>
+              {myPickMatches().length === 0 ? (
+                <div className="card p-8 text-center">
+                  <p className="text-4xl mb-3">🎯</p>
+                  <p className="text-slate-400">No predictions yet for the selected filter.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Summary bar */}
+                  <div className="card p-4 mb-4 grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <p className="text-2xl font-black text-green-400">{myPickMatches().filter(m => predStatus(m) === 'win').length}</p>
+                      <p className="text-xs text-slate-500">✅ Scoring</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-black text-red-400">{myPickMatches().filter(m => predStatus(m) === 'miss').length}</p>
+                      <p className="text-xs text-slate-500">❌ Missed</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-black text-yellow-400">{myPickMatches().filter(m => predStatus(m) === 'pending').length}</p>
+                      <p className="text-xs text-slate-500">⏳ Pending</p>
+                    </div>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {myPickMatches().map(m => (
+                      <div key={m.id} className={`rounded-xl border overflow-hidden ${cardBorder(m)}`}>
+                        <MatchCard match={m} prediction={preds[m.id]}
+                          onSave={(matchId, home, away, joker, pen) => saveMatch(matchId, home, away, joker, pen, isKnockout(m.stage))}
+                          locked={isMatchLocked(m)}
+                          jokersLeft={isKnockout(m.stage) ? koJokersLeft : jokersLeft} />
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   )
 }
+
+function jokerCheck(m) { return '' }

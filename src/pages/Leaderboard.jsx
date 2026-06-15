@@ -421,7 +421,43 @@ export default function Leaderboard() {
   const [players, setPlayers]   = useState([])
   const [loading, setLoading]   = useState(true)
   const [lastUpdate, setLastUpdate] = useState(null)
-  const [oddsData, setOddsData] = useState(null) // reserved for future use
+  const [oddsData, setOddsData] = useState(null)
+  const [tab, setTab] = useState('predictions') // 'predictions' | 'bids'
+  const [bidBoard, setBidBoard] = useState([]) // reserved for future use
+
+  const fetchBidLeaderboard = async () => {
+    // Get all bids with player info
+    const { data: bids } = await supabase
+      .from('bids')
+      .select('player_id, amount, pick, match_num, settled, won')
+    const { data: allPlayers } = await supabase
+      .from('players')
+      .select('id, display_name, avatar_style')
+
+    if (!bids || !allPlayers) return
+
+    const STARTING = 2500
+    const totals = {}
+    for (const b of bids) {
+      if (!totals[b.player_id]) totals[b.player_id] = { balance: STARTING, won: 0, lost: 0, open: 0 }
+      if (!b.settled) {
+        totals[b.player_id].balance -= b.amount
+        totals[b.player_id].open++
+      } else if (b.won) {
+        totals[b.player_id].balance += b.amount
+        totals[b.player_id].won++
+      } else {
+        totals[b.player_id].lost++
+      }
+    }
+
+    const board = allPlayers
+      .filter(p => totals[p.id])
+      .map(p => ({ ...p, ...totals[p.id] }))
+      .sort((a, b) => b.balance - a.balance)
+
+    setBidBoard(board)
+  }
 
   const fetchPlayers = async () => {
     const { data } = await supabase
@@ -434,6 +470,7 @@ export default function Leaderboard() {
 
   useEffect(() => {
     fetchPlayers()
+    fetchBidLeaderboard()
     const channel = supabase
       .channel('leaderboard')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, fetchPlayers)
@@ -460,123 +497,154 @@ export default function Leaderboard() {
   const worldAvgAcc = 38  // baseline placeholder until enough results accumulate
 
   const sendDailyEmail = async () => {
-    const top5 = players.slice(0, 5)
-    const today = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
-    const totalPlayers = players.length
-    const medals = ['🥇','🥈','🥉','4️⃣','5️⃣']
-    const gap = top5.length > 1 ? (top5[0]?.total_pts||0) - (top5[1]?.total_pts||0) : 0
-    const dayNum = Math.floor((Date.now() - new Date('2026-06-11T19:00:00Z').getTime()) / 86400000) + 1
+    const top10   = players.slice(0, 10)
+    const today   = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
+    const dayNum  = Math.max(1, Math.floor((Date.now() - new Date('2026-06-11T19:00:00Z').getTime()) / 86400000) + 1)
+    const gap     = players.length > 1 ? (players[0]?.total_pts||0) - (players[1]?.total_pts||0) : 0
+    const medals  = ['🥇','🥈','🥉','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟']
+    const appUrl  = window.location.origin + (window.location.pathname.includes('FIFA_WC_2026') ? '/FIFA_WC_2026' : '')
 
-    // Pick theme based on match day
-    const themes = [
-      { bg:'#0a4f1a', accent:'#22c55e', header:'⚽ Day ' + dayNum + ' — The Race Heats Up!' },
-      { bg:'#1a0a2e', accent:'#a855f7', header:'🌙 Evening Update — Day ' + dayNum },
-      { bg:'#1a0f00', accent:'#f59e0b', header:'🔥 Matchday ' + dayNum + ' Standings' },
-      { bg:'#0a1a3e', accent:'#3b82f6', header:'⚡ Day ' + dayNum + ' Leaderboard' },
-    ]
-    const theme = themes[dayNum % themes.length]
-
-    const rankRows = top5.map((p, i) =>
-      `<tr>
-        <td style="padding:12px 16px;font-size:22px;width:40px;">${medals[i]}</td>
-        <td style="padding:12px 8px;font-size:15px;font-weight:700;color:#fff;">${p.display_name}</td>
-        <td style="padding:12px 16px;text-align:right;font-size:20px;font-weight:900;color:${theme.accent};">${p.total_pts} pts</td>
-      </tr>`
-    ).join('<tr><td colspan="3" style="border-bottom:1px solid rgba(255,255,255,0.08);padding:0;"></td></tr>')
+    const rowBg   = (i) => i % 2 === 0 ? '#0d1f35' : '#0a1a2e'
+    const topBg   = ['#1a3a1a','#1a2a3a','#1f2a1a']
 
     const html = `<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#0d0d0d;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0d0d0d;padding:20px 0;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+<body style="margin:0;padding:0;background:#060e1a;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#060e1a;padding:24px 16px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#0a1628;border-radius:16px;overflow:hidden;border:1px solid #1a3a5c;max-width:600px;">
 
-        <!-- Header with gradient -->
-        <tr>
-          <td style="background:linear-gradient(135deg,${theme.bg} 0%,#0d0d0d 100%);padding:40px 32px 32px;text-align:center;border-bottom:3px solid ${theme.accent};">
-            <div style="font-size:56px;margin-bottom:12px;">⚽</div>
-            <h1 style="margin:0;font-size:28px;font-weight:900;color:#fff;letter-spacing:-0.5px;">${theme.header}</h1>
-            <p style="margin:8px 0 0;color:rgba(255,255,255,0.6);font-size:14px;">${today}</p>
-          </td>
+  <!-- Header -->
+  <tr>
+    <td style="background:linear-gradient(135deg,#003366,#001a33);padding:28px 32px;text-align:center;">
+      <div style="font-size:48px;margin-bottom:8px;">⚽</div>
+      <h1 style="margin:0;color:#ffffff;font-size:26px;font-weight:900;letter-spacing:-0.5px;">WC2026 Predictor</h1>
+      <p style="margin:8px 0 0;color:#4a9eff;font-size:15px;font-weight:700;">⚡ Day ${dayNum} Standings — ${today}</p>
+    </td>
+  </tr>
+
+  <!-- Leaderboard table header -->
+  <tr>
+    <td style="padding:20px 32px 0;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:12px;overflow:hidden;border:1px solid #1a3a5c;">
+        <tr style="background:#003366;">
+          <td style="padding:10px 16px;color:#7ab8ff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;width:40px;">#</td>
+          <td style="padding:10px 16px;color:#7ab8ff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Player</td>
+          <td style="padding:10px 16px;color:#7ab8ff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;text-align:center;width:60px;">Matches</td>
+          <td style="padding:10px 16px;color:#7ab8ff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;text-align:center;width:60px;">Special</td>
+          <td style="padding:10px 16px;color:#7ab8ff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;text-align:right;width:70px;">Total</td>
         </tr>
-
-        <!-- Leaderboard -->
-        <tr>
-          <td style="background:#111;padding:0;">
-            <div style="padding:24px 32px 8px;">
-              <p style="margin:0;font-size:11px;font-weight:700;letter-spacing:2px;color:rgba(255,255,255,0.4);text-transform:uppercase;">🏆 Top 5 Leaderboard</p>
-            </div>
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-              ${rankRows}
-            </table>
-            <div style="padding:16px 32px;display:flex;gap:24px;">
-              <span style="font-size:13px;color:rgba(255,255,255,0.5);">📊 Gap 1st→2nd: <b style="color:#fff;">${gap} pts</b></span>
-              <span style="font-size:13px;color:rgba(255,255,255,0.5);">👥 Players: <b style="color:#fff;">${totalPlayers}</b></span>
-            </div>
+        ${top10.map((p, i) => `
+        <tr style="background:${i < 3 ? topBg[i] : rowBg(i)};">
+          <td style="padding:12px 16px;font-size:18px;text-align:center;">${medals[i]}</td>
+          <td style="padding:12px 16px;">
+            <span style="color:#ffffff;font-size:14px;font-weight:${i < 3 ? '700' : '500'};">${p.display_name}</span>
           </td>
-        </tr>
-
-        <!-- CTA Button -->
-        <tr>
-          <td style="background:#111;padding:8px 32px 32px;text-align:center;">
-            <a href="https://akshathlt.github.io/FIFA_WC_2026/leaderboard"
-               style="display:inline-block;background:${theme.accent};color:#000;font-weight:900;font-size:15px;padding:14px 36px;border-radius:50px;text-decoration:none;letter-spacing:0.5px;">
-              🏆 View Full Leaderboard →
-            </a>
+          <td style="padding:12px 16px;text-align:center;color:#94a3b8;font-size:13px;">${p.stage_pts || 0}</td>
+          <td style="padding:12px 16px;text-align:center;color:#94a3b8;font-size:13px;">${p.special_pts || 0}</td>
+          <td style="padding:12px 16px;text-align:right;">
+            <span style="color:${i === 0 ? '#fbbf24' : '#22c55e'};font-size:15px;font-weight:900;">${p.total_pts || 0}</span>
+            <span style="color:#475569;font-size:11px;"> pts</span>
           </td>
-        </tr>
-
-        <!-- Points reminder -->
-        <tr>
-          <td style="background:#0d0d0d;padding:24px 32px;border-top:1px solid #222;">
-            <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;">🎯 Points System</p>
-            <table width="100%" cellpadding="0" cellspacing="0">
-              ${[['Correct winner/draw','2 pts'],['Correct goal diff','3 pts'],['Exact scoreline','5 pts'],['🃏 Joker card','×2 all pts']].map(([l,p])=>
-                `<tr>
-                  <td style="padding:4px 0;font-size:13px;color:rgba(255,255,255,0.7);">${l}</td>
-                  <td style="padding:4px 0;font-size:13px;font-weight:700;color:${theme.accent};text-align:right;">${p}</td>
-                </tr>`
-              ).join('')}
-            </table>
-          </td>
-        </tr>
-
-        <!-- Upcoming reminder -->
-        <tr>
-          <td style="background:#0d0d0d;padding:0 32px 24px;text-align:center;">
-            <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:16px;">
-              <p style="margin:0;font-size:14px;color:rgba(255,255,255,0.8);">
-                ⏰ Each match locks <b style="color:${theme.accent};">1 hour before kick-off</b><br>
-                Upcoming matches are still open — predict now!
-              </p>
-              <a href="https://akshathlt.github.io/FIFA_WC_2026/matches"
-                 style="display:inline-block;margin-top:12px;background:rgba(255,255,255,0.1);color:#fff;font-weight:700;font-size:13px;padding:10px 24px;border-radius:50px;text-decoration:none;">
-                ⚽ Predict Matches
-              </a>
-            </div>
-          </td>
-        </tr>
-
-        <!-- Footer -->
-        <tr>
-          <td style="background:#080808;padding:20px 32px;text-align:center;border-top:1px solid #1a1a1a;">
-            <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.3);">
-              FIFA World Cup 2026 Predictor &nbsp;·&nbsp;
-              <a href="https://akshathlt.github.io/FIFA_WC_2026/" style="color:${theme.accent};text-decoration:none;">Open App</a>
-            </p>
-          </td>
-        </tr>
-
+        </tr>`).join('')}
       </table>
-    </td></tr>
-  </table>
+    </td>
+  </tr>
+
+  <!-- Stats row -->
+  <tr>
+    <td style="padding:16px 32px;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="background:#0d1f35;border-radius:8px;padding:12px 16px;text-align:center;width:33%;">
+            <div style="color:#fbbf24;font-size:18px;font-weight:900;">${gap}</div>
+            <div style="color:#64748b;font-size:11px;margin-top:2px;">Gap 1st → 2nd</div>
+          </td>
+          <td width="8"></td>
+          <td style="background:#0d1f35;border-radius:8px;padding:12px 16px;text-align:center;width:33%;">
+            <div style="color:#22c55e;font-size:18px;font-weight:900;">${players.length}</div>
+            <div style="color:#64748b;font-size:11px;margin-top:2px;">Total Players</div>
+          </td>
+          <td width="8"></td>
+          <td style="background:#0d1f35;border-radius:8px;padding:12px 16px;text-align:center;width:33%;">
+            <div style="color:#a78bfa;font-size:18px;font-weight:900;">${dayNum}</div>
+            <div style="color:#64748b;font-size:11px;margin-top:2px;">Tournament Day</div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- Points system table -->
+  <tr>
+    <td style="padding:0 32px 16px;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:12px;overflow:hidden;border:1px solid #1a3a5c;">
+        <tr style="background:#003366;">
+          <td colspan="2" style="padding:10px 16px;color:#7ab8ff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">🎯 Points System</td>
+        </tr>
+        ${[
+          ['Correct winner/draw','2 pts'],
+          ['Correct goal difference','3 pts'],
+          ['Exact scoreline','5 pts'],
+          ['🃏 Joker card','×2 all pts'],
+          ['🟣 Knockout draw','+5 pts'],
+          ['🥅 Correct penalties','+10 pts'],
+        ].map(([label, val], i) => `
+        <tr style="background:${i % 2 === 0 ? '#0d1f35' : '#0a1a2e'};">
+          <td style="padding:9px 16px;color:#cbd5e1;font-size:13px;">${label}</td>
+          <td style="padding:9px 16px;color:#22c55e;font-size:13px;font-weight:700;text-align:right;">${val}</td>
+        </tr>`).join('')}
+      </table>
+    </td>
+  </tr>
+
+  <!-- Reminder -->
+  <tr>
+    <td style="padding:0 32px 20px;">
+      <div style="background:#1a1a0a;border:1px solid #854d0e;border-radius:10px;padding:12px 16px;text-align:center;">
+        <p style="margin:0;color:#fbbf24;font-size:13px;font-weight:700;">⏰ Each match locks <strong>1 hour before kick-off</strong></p>
+        <p style="margin:6px 0 0;color:#78716c;font-size:12px;">Upcoming matches are still open — predict now!</p>
+      </div>
+    </td>
+  </tr>
+
+  <!-- CTA buttons -->
+  <tr>
+    <td style="padding:0 32px 24px;text-align:center;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td align="center" style="padding:0 4px;">
+            <a href="${appUrl}/leaderboard" style="display:inline-block;background:#1a3a5c;color:#7ab8ff;font-size:13px;font-weight:700;padding:10px 24px;border-radius:8px;text-decoration:none;border:1px solid #2a5a8c;">🏆 Full Leaderboard</a>
+          </td>
+          <td align="center" style="padding:0 4px;">
+            <a href="${appUrl}/matches" style="display:inline-block;background:#1a3300;color:#22c55e;font-size:13px;font-weight:700;padding:10px 24px;border-radius:8px;text-decoration:none;border:1px solid #166534;">⚽ Predict Matches</a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- Footer -->
+  <tr>
+    <td style="background:#060e1a;padding:16px 32px;text-align:center;border-top:1px solid #1a3a5c;">
+      <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.25);">
+        FIFA World Cup 2026 Predictor &nbsp;·&nbsp;
+        <a href="${appUrl}" style="color:#4a9eff;text-decoration:none;">Open App</a>
+      </p>
+    </td>
+  </tr>
+
+</table>
+</td></tr>
+</table>
 </body>
 </html>`
 
     // Best approach for Outlook: write HTML to a hidden div, select it, copy
     // This copies as rich HTML so Outlook receives formatted content, not raw HTML tags
     const div = document.createElement('div')
+    div.contentEditable = 'true'
     div.contentEditable = 'true'
     div.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none;'
     div.innerHTML = html
@@ -629,7 +697,68 @@ export default function Leaderboard() {
         )}
       </div>
 
-      {/* ── My Standing Card (rank gauge + accuracy) ── */}
+      {/* ── Tab switcher ── */}
+      <div className="flex rounded-xl overflow-hidden border border-slate-700 mb-6">
+        <button onClick={() => setTab('predictions')}
+          className={`flex-1 py-2 text-sm font-semibold transition-colors
+            ${tab === 'predictions' ? 'bg-green-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}>
+          🏆 Predictions
+        </button>
+        <button onClick={() => setTab('bids')}
+          className={`flex-1 py-2 text-sm font-semibold transition-colors
+            ${tab === 'bids' ? 'bg-yellow-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}>
+          💰 Fun Bidding
+        </button>
+      </div>
+
+      {/* ── Bid leaderboard tab ── */}
+      {tab === 'bids' && (
+        <div className="space-y-2">
+          <p className="text-slate-500 text-xs text-center mb-4">Virtual money only · Starts at €2,500 · Win = stake ×2</p>
+          {bidBoard.length === 0 ? (
+            <div className="card p-12 text-center">
+              <p className="text-4xl mb-3">💰</p>
+              <p className="text-slate-400">No bids placed yet — be the first!</p>
+            </div>
+          ) : (
+            bidBoard.map((p, i) => {
+              const isMe = p.id === player?.id
+              const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null
+              const gain = p.balance - 2500
+              return (
+                <div key={p.id} className={`flex items-center gap-4 px-4 py-3 rounded-xl border transition-all
+                  ${isMe ? 'border-yellow-500 bg-yellow-900/10' : 'border-slate-700/50 hover:border-slate-600'}`}>
+                  <span className="w-8 text-lg font-black text-center">
+                    {medal || <span className="text-slate-400 text-sm">{i + 1}</span>}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold truncate">
+                      {p.display_name}
+                      {isMe && <span className="text-yellow-400 text-xs ml-1">(you)</span>}
+                    </p>
+                    <div className="flex gap-3 text-xs text-slate-500 mt-0.5">
+                      <span>✅ Won: <b className="text-green-400">{p.won}</b></span>
+                      <span>❌ Lost: <b className="text-red-400">{p.lost}</b></span>
+                      <span>⏳ Open: <b className="text-slate-300">{p.open}</b></span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-xl font-black ${p.balance >= 2500 ? 'text-green-400' : 'text-red-400'}`}>
+                      €{p.balance.toLocaleString()}
+                    </p>
+                    <p className={`text-xs ${gain >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {gain >= 0 ? '+' : ''}{gain.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
+
+      {/* ── Predictions tab ── */}
+      {tab === 'predictions' && (<>
       {myRank > 0 && (
         <div className="card p-5 mb-6 border border-green-800/40">
           <p className="text-xs font-bold text-green-400 uppercase tracking-widest mb-4">📊 Your Standing</p>
@@ -706,6 +835,8 @@ export default function Leaderboard() {
           name={myData?.display_name || ''}
         />
       )}
+      </>)}
     </div>
   )
 }
+
