@@ -27,68 +27,127 @@ jobs:
             'Prefer': 'return=minimal'
           };
 
+          const STAGE_MAP = {
+            'First Stage': 'group',
+            'Round of 32': 'r32',
+            'Round of 16': 'r16',
+            'Quarter-final': 'qf',
+            'Semi-final': 'sf',
+            'Play-off for third place': '3rd',
+            'Final': 'final',
+          };
+          const KNOCKOUT = ['r32','r16','qf','sf','3rd','final'];
+
           async function query(path, opts = {}) {
-            const { headers: extraHeaders, ...restOpts } = opts
+            const { headers: extraHeaders, ...restOpts } = opts;
             const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-              headers: { ...headers, 'Prefer': 'return=minimal', ...(extraHeaders || {}) },
+              headers: { ...headers, ...(extraHeaders || {}) },
               ...restOpts
-            })
+            });
             if (!r.ok) { const t = await r.text(); throw new Error(`${r.status} ${path}: ${t}`); }
-            return restOpts.method && restOpts.method !== 'GET' ? null : r.json();
+            const method = restOpts.method || 'GET';
+            return method === 'GET' ? r.json() : null;
           }
 
-          async function logSync(updated, skipped, message) {
+          async function logSync(updated, inserted, skipped, message) {
             try {
               await fetch(`${SUPABASE_URL}/rest/v1/sync_log`, {
                 method: 'POST',
                 headers: { ...headers, 'Prefer': 'return=minimal' },
                 body: JSON.stringify({ source: 'github_action', matches_updated: updated, matches_skipped: skipped, message })
-              })
-              console.log('✅ Sync log written')
-            } catch(e) { console.warn('Log write failed (non-fatal):', e.message) }
+              });
+              console.log('✅ Sync log written');
+            } catch(e) { console.warn('Log write failed (non-fatal):', e.message); }
           }
 
           async function main() {
-            // 1. Fetch FIFA scores
+            // 1. Fetch all FIFA matches
             console.log('Fetching FIFA API...');
             const fifa = await fetch(FIFA_URL).then(r => r.json());
-            const fifaWithScores = (fifa.Results || []).filter(m => m.HomeTeamScore != null && m.AwayTeamScore != null);
-            console.log(`FIFA matches with scores: ${fifaWithScores.length}`);
+            const allFifaMatches = fifa.Results || [];
+            console.log(`FIFA total matches: ${allFifaMatches.length}`);
 
             // 2. Get DB matches
-            const dbMatches = await query('matches?select=id,match_num,home_goals,away_goals,home_team,away_team');
+            const dbMatches = await query('matches?select=id,match_num,home_goals,away_goals,home_team,away_team&order=match_num');
             console.log(`DB matches: ${dbMatches.length}`);
 
-            // 3. Sync new/changed results
-            let updated = 0, skipped = 0;
-            for (const fm of fifaWithScores) {
+            // 3. Insert missing matches + update existing ones
+            let updated = 0, inserted = 0, skipped = 0, teamsUpdated = 0;
+
+            for (const fm of allFifaMatches) {
               const dbMatch = dbMatches.find(m => m.match_num === fm.MatchNumber);
-              if (!dbMatch) continue;
-              if (dbMatch.home_goals === fm.HomeTeamScore && dbMatch.away_goals === fm.AwayTeamScore) { skipped++; continue; }
 
-              const update = { home_goals: fm.HomeTeamScore, away_goals: fm.AwayTeamScore, locked: true, last_synced_at: new Date().toISOString() };
-              if (fm.ResultType === 2 && fm.HomeTeamPenaltyScore != null) {
-                update.penalty_winner = fm.HomeTeamPenaltyScore > fm.AwayTeamPenaltyScore
-                  ? fm.Home?.ShortClubName : fm.Away?.ShortClubName;
+              if (!dbMatch) {
+                // Insert missing match (e.g. R32+ not yet in DB)
+                const stageName = fm.StageName?.[0]?.Description || '';
+                const stage = STAGE_MAP[stageName] || 'knockout';
+                const newMatch = {
+                  match_num:  fm.MatchNumber,
+                  home_team:  fm.Home?.ShortClubName || fm.PlaceHolderA || 'TBD',
+                  away_team:  fm.Away?.ShortClubName || fm.PlaceHolderB || 'TBD',
+                  match_date: fm.Date ? fm.Date.split('T')[0] : null,
+                  match_time: fm.Date ? fm.Date.split('T')[1]?.slice(0,5) : null,
+                  stage,
+                  group_name: fm.GroupName?.[0]?.Description || null,
+                  locked:     fm.HomeTeamScore != null,
+                  home_goals: fm.HomeTeamScore ?? null,
+                  away_goals: fm.AwayTeamScore ?? null,
+                };
+                if (fm.ResultType === 2 && fm.HomeTeamPenaltyScore != null) {
+                  newMatch.penalty_winner = fm.HomeTeamPenaltyScore > fm.AwayTeamPenaltyScore
+                    ? fm.Home?.ShortClubName : fm.Away?.ShortClubName;
+                }
+                await query('matches', { method: 'POST', headers: { 'Prefer': 'return=minimal' }, body: JSON.stringify(newMatch) });
+                console.log(`➕ Inserted M${fm.MatchNumber}: ${newMatch.home_team} vs ${newMatch.away_team}`);
+                inserted++;
+                continue;
               }
-              await query(`matches?id=eq.${dbMatch.id}`, { method: 'PATCH', body: JSON.stringify(update) });
-              console.log(`✅ Synced M${fm.MatchNumber}: ${fm.Home?.ShortClubName} ${fm.HomeTeamScore}-${fm.AwayTeamScore} ${fm.Away?.ShortClubName}`);
-              updated++;
-            }
-            console.log(`Sync: ${updated} updated, ${skipped} already up to date`);
 
-            if (updated === 0) {
-              console.log('No new results — skipping recalculation');
-              await logSync(0, skipped, `No new results. ${skipped} already up to date.`);
+              const update = {};
+
+              // Update team names if FIFA has real teams
+              const newHome = fm.Home?.ShortClubName || null;
+              const newAway = fm.Away?.ShortClubName || null;
+              if (newHome && newHome !== dbMatch.home_team) { update.home_team = newHome; teamsUpdated++; }
+              if (newAway && newAway !== dbMatch.away_team) { update.away_team = newAway; teamsUpdated++; }
+
+              // Update scores
+              if (fm.HomeTeamScore != null && fm.AwayTeamScore != null) {
+                if (dbMatch.home_goals === fm.HomeTeamScore && dbMatch.away_goals === fm.AwayTeamScore) {
+                  skipped++;
+                } else {
+                  update.home_goals = fm.HomeTeamScore;
+                  update.away_goals = fm.AwayTeamScore;
+                  update.locked = true;
+                  update.last_synced_at = new Date().toISOString();
+                  if (fm.ResultType === 2 && fm.HomeTeamPenaltyScore != null) {
+                    update.penalty_winner = fm.HomeTeamPenaltyScore > fm.AwayTeamPenaltyScore
+                      ? fm.Home?.ShortClubName : fm.Away?.ShortClubName;
+                  }
+                  console.log(`✅ Synced M${fm.MatchNumber}: ${fm.Home?.ShortClubName} ${fm.HomeTeamScore}-${fm.AwayTeamScore} ${fm.Away?.ShortClubName}`);
+                  updated++;
+                }
+              }
+
+              if (Object.keys(update).length > 0) {
+                await query(`matches?id=eq.${dbMatch.id}`, { method: 'PATCH', body: JSON.stringify(update) });
+              }
+            }
+
+            console.log(`Sync: ${inserted} inserted, ${updated} updated, ${teamsUpdated} team names, ${skipped} already up to date`);
+
+            if (updated === 0 && inserted === 0 && teamsUpdated === 0) {
+              console.log('Nothing changed — skipping recalculation');
+              await logSync(0, 0, skipped, `No changes. ${skipped} already up to date.`);
               return;
             }
 
-            // 4. Recalculate points for all players
+            // 4. Recalculate match prediction points
             console.log('Recalculating points...');
             const finishedMatches = await query('matches?select=*&home_goals=not.is.null');
             const allPreds = await query('match_predictions?select=*');
 
-            const totals = {};
+            const stageTotals = {};
             for (const match of finishedMatches) {
               const mPreds = allPreds.filter(p => p.match_id === match.id);
               for (const pred of mPreds) {
@@ -99,32 +158,46 @@ jobs:
                 if (predDiff === realDiff) pts += 1;
                 if (pred.predicted_home === match.home_goals && pred.predicted_away === match.away_goals) pts += 2;
                 let penPts = 0;
-                const KNOCKOUT = ['r32','qf','sf','3rd','final'];
                 if (KNOCKOUT.includes(match.stage) && match.home_goals === match.away_goals) {
                   if (predDiff === 0) penPts += 5;
-                  if (match.penalty_winner && pred.penalty_winner === match.penalty_winner) penPts += 5;
+                  if (match.penalty_winner && pred.penalty_winner === match.penalty_winner) penPts += 10;
                 }
                 if (pred.joker_used) { pts *= 2; penPts *= 2; }
                 await query(`match_predictions?id=eq.${pred.id}`, {
                   method: 'PATCH', body: JSON.stringify({ total_pts: pts, penalty_pts: penPts })
                 });
-                totals[pred.player_id] = (totals[pred.player_id] || 0) + pts + penPts;
+                stageTotals[pred.player_id] = (stageTotals[pred.player_id] || 0) + pts + penPts;
               }
             }
 
-            // 5. Update player totals
-            for (const [pid, pts] of Object.entries(totals)) {
-              await query(`players?id=eq.${pid}`, {
-                method: 'PATCH', body: JSON.stringify({ stage_pts: pts, total_pts: pts })
+            // 5. Sum group + third place + special pts per player (already scored, just re-sum)
+            const groupPreds   = await query('group_predictions?select=player_id,points_earned');
+            const thirdPreds   = await query('third_place_picks?select=player_id,points_earned');
+            const specialAns   = await query('special_answers?select=player_id,points_earned');
+
+            const groupTotals   = {};
+            for (const r of groupPreds)  groupTotals[r.player_id]  = (groupTotals[r.player_id]  || 0) + (r.points_earned || 0);
+            const thirdTotals   = {};
+            for (const r of thirdPreds)  thirdTotals[r.player_id]  = (thirdTotals[r.player_id]  || 0) + (r.points_earned || 0);
+            const specialTotals = {};
+            for (const r of specialAns)  specialTotals[r.player_id] = (specialTotals[r.player_id] || 0) + (r.points_earned || 0);
+
+            // 6. Update all players with correct totals
+            const allPlayers = await query('players?select=id');
+            for (const pl of allPlayers) {
+              const stage   = stageTotals[pl.id]   || 0;
+              const special = (groupTotals[pl.id]  || 0) + (thirdTotals[pl.id] || 0) + (specialTotals[pl.id] || 0);
+              await query(`players?id=eq.${pl.id}`, {
+                method: 'PATCH', body: JSON.stringify({ stage_pts: stage, special_pts: special, total_pts: stage + special })
               });
             }
-            console.log(`✅ Recalculated points for ${Object.keys(totals).length} players`);
-            await logSync(updated, skipped, `Synced ${updated} results, recalculated ${Object.keys(totals).length} players`);
+
+            console.log(`✅ Recalculated points for ${allPlayers.length} players`);
+            await logSync(updated, inserted, skipped, `Inserted ${inserted}, synced ${updated} results, recalculated ${allPlayers.length} players`);
           }
 
           main().catch(e => {
             console.error('ERROR:', e.message);
-            // Log failure too
             fetch(`${SUPABASE_URL}/rest/v1/sync_log`, {
               method: 'POST',
               headers: {
