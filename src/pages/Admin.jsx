@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, SUPABASE_FUNCTIONS_URL } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { fetchWithFallback } from '../lib/fetchWithFallback'
 
@@ -505,8 +505,7 @@ export default function Admin() {
     if (!window.confirm(`Set a temporary password for ${p.display_name} (${p.email})?\n\nThey will be required to change it on next login.`)) return
     setMsg('Generating temp password…')
     const { data: { session } } = await supabase.auth.getSession()
-    const supabaseUrl = supabase.supabaseUrl || 'https://neqdmjxbjwxmoiaxzkiy.supabase.co'
-    const res = await fetch(`${supabaseUrl}/functions/v1/set-temp-password`, {
+    const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/set-temp-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
       body: JSON.stringify({ target_user_id: p.user_id })
