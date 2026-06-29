@@ -16,10 +16,11 @@ function TBD() {
   )
 }
 
-function TeamRow({ name, code, score, penScore, isWinner, isPen }) {
+function TeamRow({ name, code, placeholder, score, penScore, isWinner, isPen }) {
   const [flagErr, setFlagErr] = useState(false)
   const hasScore = score != null
   const hasPen = penScore != null
+  const display = name || placeholder
 
   return (
     <div className={`flex items-center justify-between px-2 py-1.5 gap-2
@@ -30,9 +31,9 @@ function TeamRow({ name, code, score, penScore, isWinner, isPen }) {
               className="w-5 h-3.5 object-cover rounded-sm flex-shrink-0" alt={name} />
           : name && code && <span className="w-5 h-3.5 bg-slate-700 rounded-sm flex-shrink-0 text-[8px] flex items-center justify-center text-slate-400">{code?.slice(0,2)}</span>
         }
-        {name
-          ? <span className={`text-xs font-medium truncate max-w-[70px] ${isWinner ? 'text-green-300' : 'text-slate-200'}`}>
-              {name}{isPen ? ' (p)' : ''}
+        {display
+          ? <span className={`text-xs font-medium truncate max-w-[70px] ${isWinner ? 'text-green-300' : name ? 'text-slate-200' : 'text-slate-500'}`}>
+              {display}{isPen ? ' (p)' : ''}
             </span>
           : <TBD />
         }
@@ -55,7 +56,7 @@ function MatchBox({ match }) {
     </div>
   )
 
-  const { teamA, codeA, teamB, codeB, scoreA, scoreB, penA, penB, matchNum, date } = match
+  const { teamA, codeA, teamB, codeB, scoreA, scoreB, penA, penB, matchNum, date, placeholderA, placeholderB } = match
   const hasScore = scoreA != null && scoreB != null
   const winA = hasScore && (scoreA > scoreB || (scoreA === scoreB && penA != null && penA > penB))
   const winB = hasScore && (scoreB > scoreA || (scoreA === scoreB && penB != null && penB > penA))
@@ -66,89 +67,56 @@ function MatchBox({ match }) {
 
   return (
     <div className="w-[130px] rounded border border-slate-700 bg-slate-900 overflow-hidden">
-      {/* Header: date + match number */}
       <div className="flex items-center justify-between px-2 py-0.5 bg-slate-800 border-b border-slate-700">
         <span className="text-[9px] text-slate-500">{dateStr ? `${dateStr} ${timeStr}` : '—'}</span>
         {matchNum && <span className="text-[9px] text-blue-500">M{matchNum}</span>}
       </div>
-      {/* Team A */}
-      <TeamRow name={teamA} code={codeA} score={scoreA} penScore={isPenA ? penA : isPenB ? penA : null}
+      <TeamRow name={teamA} code={codeA} placeholder={placeholderA} score={scoreA} penScore={isPenA ? penA : isPenB ? penA : null}
         isWinner={winA} isPen={isPenA} />
       <div className="border-t border-slate-800" />
-      {/* Team B */}
-      <TeamRow name={teamB} code={codeB} score={scoreB} penScore={isPenB ? penB : isPenA ? penB : null}
+      <TeamRow name={teamB} code={codeB} placeholder={placeholderB} score={scoreB} penScore={isPenB ? penB : isPenA ? penB : null}
         isWinner={winB} isPen={isPenB} />
     </div>
   )
 }
 
-// Connector: two matches on left → one on right
-function BracketConnector({ top, bottom }) {
-  return (
-    <div className="flex items-stretch" style={{ gap: 0 }}>
-      {/* Two match boxes stacked */}
-      <div className="flex flex-col" style={{ gap: 6 }}>
-        <MatchBox match={top} />
-        <MatchBox match={bottom} />
-      </div>
-
-      {/* Right bracket lines */}
-      <div className="flex flex-col flex-shrink-0" style={{ width: 14 }}>
-        {/* Top arm: right+bottom border */}
-        <div style={{
-          flex: 1,
-          borderRight: '1.5px solid #475569',
-          borderBottom: '1.5px solid #475569',
-        }} />
-        {/* Bottom arm: right+top border */}
-        <div style={{
-          flex: 1,
-          borderRight: '1.5px solid #475569',
-          borderTop: '1.5px solid #475569',
-        }} />
-      </div>
-    </div>
-  )
-}
-
-// A round "segment": pair of pairs → pair of R16 → QF etc.
-// tree: { match, left: { match, left, right }, right: { match, left, right } }
+// Left tree: match box on right, children expand leftward
 function BracketTree({ node, depth }) {
   if (!node) return null
-
-  // Leaf: just show match box
-  if (!node.left && !node.right) {
-    return <MatchBox match={node.match} />
-  }
+  if (!node.left && !node.right) return <MatchBox match={node.match} />
 
   return (
     <div className="flex items-stretch" style={{ gap: 0 }}>
-      {/* Left subtree (two children stacked) */}
       <div className="flex flex-col" style={{ gap: depth >= 3 ? 24 : depth >= 2 ? 16 : 6 }}>
         <BracketTree node={node.left} depth={depth - 1} />
         <BracketTree node={node.right} depth={depth - 1} />
       </div>
-
-      {/* Bracket connector lines */}
       <div className="flex flex-col flex-shrink-0" style={{ width: 14 }}>
-        <div style={{
-          flex: 1,
-          borderRight: '1.5px solid #475569',
-          borderBottom: '1.5px solid #475569',
-        }} />
-        <div style={{
-          flex: 1,
-          borderRight: '1.5px solid #475569',
-          borderTop: '1.5px solid #475569',
-        }} />
+        <div style={{ flex: 1, borderRight: '1.5px solid #475569', borderBottom: '1.5px solid #475569' }} />
+        <div style={{ flex: 1, borderRight: '1.5px solid #475569', borderTop: '1.5px solid #475569' }} />
       </div>
-
-      {/* Horizontal connector */}
       <div style={{ width: 8, alignSelf: 'center', height: 1.5, background: '#475569', flexShrink: 0 }} />
+      <div className="self-center"><MatchBox match={node.match} /></div>
+    </div>
+  )
+}
 
-      {/* This round's match box */}
-      <div className="self-center">
-        <MatchBox match={node.match} />
+// Right tree: match box on LEFT, children expand rightward (mirror layout of left tree)
+function BracketTreeRight({ node, depth }) {
+  if (!node) return null
+  if (!node.left && !node.right) return <MatchBox match={node.match} />
+
+  return (
+    <div className="flex items-stretch" style={{ gap: 0 }}>
+      <div className="self-center"><MatchBox match={node.match} /></div>
+      <div style={{ width: 8, alignSelf: 'center', height: 1.5, background: '#475569', flexShrink: 0 }} />
+      <div className="flex flex-col flex-shrink-0" style={{ width: 14 }}>
+        <div style={{ flex: 1, borderLeft: '1.5px solid #475569', borderBottom: '1.5px solid #475569' }} />
+        <div style={{ flex: 1, borderLeft: '1.5px solid #475569', borderTop: '1.5px solid #475569' }} />
+      </div>
+      <div className="flex flex-col" style={{ gap: depth >= 3 ? 24 : depth >= 2 ? 16 : 6 }}>
+        <BracketTreeRight node={node.left} depth={depth - 1} />
+        <BracketTreeRight node={node.right} depth={depth - 1} />
       </div>
     </div>
   )
@@ -242,46 +210,46 @@ export default function KnockoutBracket() {
 
   return (
     <div className="overflow-x-auto pb-4 mt-2">
-      {/* Column headers */}
-      <div className="flex items-center justify-between mb-3" style={{ minWidth: 1080 }}>
-        {leftLabels.map(l => (
-          <span key={l} className="text-xs font-bold text-slate-400 flex-1 text-center">{l}</span>
-        ))}
-        <span className="text-xs font-bold text-yellow-400 w-[140px] text-center">Final</span>
-        {rightLabels.map(l => (
-          <span key={l} className="text-xs font-bold text-slate-400 flex-1 text-center">{l}</span>
-        ))}
-      </div>
-
-      {/* Bracket */}
-      <div className="flex items-center justify-center gap-1" style={{ minWidth: 1080 }}>
-
-        {/* Left half (expands left→right into Final) */}
-        <BracketTree node={leftTree} depth={4} />
-
-        {/* Connector left → Final */}
-        <div style={{ width: 10, height: 1.5, background: '#475569', flexShrink: 0 }} />
-
-        {/* Final + 3rd place */}
-        <div className="flex flex-col items-center gap-6 flex-shrink-0">
-          <div>
-            <div className="text-[10px] font-bold text-yellow-400 text-center mb-1">🏆 Final</div>
-            <MatchBox match={m(104)} />
-          </div>
-          <div>
-            <div className="text-[10px] font-bold text-slate-400 text-center mb-1">🥉 3rd Place</div>
-            <MatchBox match={m(103)} />
-          </div>
+      <div style={{ minWidth: 'max-content', margin: '0 auto' }}>
+        {/* Column headers */}
+        <div className="flex items-center justify-between mb-3" style={{ minWidth: 1200 }}>
+          {leftLabels.map(l => (
+            <span key={l} className="text-xs font-bold text-slate-400 flex-1 text-center">{l}</span>
+          ))}
+          <span className="text-xs font-bold text-yellow-400 w-[140px] text-center">Final</span>
+          {rightLabels.map(l => (
+            <span key={l} className="text-xs font-bold text-slate-400 flex-1 text-center">{l}</span>
+          ))}
         </div>
 
-        {/* Connector Final ← right */}
-        <div style={{ width: 10, height: 1.5, background: '#475569', flexShrink: 0 }} />
+        {/* Bracket */}
+        <div className="flex items-center gap-1">
 
-        {/* Right half (mirror: expands right→left into Final) */}
-        <div style={{ transform: 'scaleX(-1)' }}>
-          <BracketTree node={rightTree} depth={4} />
+          {/* Left half (expands left→right into Final) */}
+          <BracketTree node={leftTree} depth={4} />
+
+          {/* Connector left → Final */}
+          <div style={{ width: 10, height: 1.5, background: '#475569', flexShrink: 0 }} />
+
+          {/* Final + 3rd place */}
+          <div className="flex flex-col items-center gap-6 flex-shrink-0">
+            <div>
+              <div className="text-[10px] font-bold text-yellow-400 text-center mb-1">🏆 Final</div>
+              <MatchBox match={m(104)} />
+            </div>
+            <div>
+              <div className="text-[10px] font-bold text-slate-400 text-center mb-1">🥉 3rd Place</div>
+              <MatchBox match={m(103)} />
+            </div>
+          </div>
+
+          {/* Connector Final ← right */}
+          <div style={{ width: 10, height: 1.5, background: '#475569', flexShrink: 0 }} />
+
+          {/* Right half (expands left→right away from Final) */}
+          <BracketTreeRight node={rightTree} depth={4} />
+
         </div>
-
       </div>
 
       {/* Mobile fallback note */}

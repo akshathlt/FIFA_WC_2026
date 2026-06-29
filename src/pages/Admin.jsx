@@ -124,18 +124,53 @@ function MatchResultForm({ match, onSaved }) {
   )
 }
 
+function SpecialQuestionGrader({ q, onSaved }) {
+  const [answer, setAnswer] = useState(q.correct_answer || '')
+  const [saving, setSaving] = useState(false)
+
+  const save = async () => {
+    setSaving(true)
+    await supabase.from('special_questions').update({ correct_answer: answer.trim() }).eq('id', q.id)
+    onSaved(q.id, answer.trim())
+    setSaving(false)
+  }
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium">{q.category} — {q.question}</p>
+        <p className="text-xs text-slate-500 mt-0.5">{q.points} pts · type: {q.answer_type}</p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <input value={answer} onChange={e => setAnswer(e.target.value)}
+          placeholder="Correct answer…"
+          className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-green-500 w-44" />
+        <button onClick={save} disabled={saving || !answer.trim()}
+          className="btn-primary !py-1.5 !px-4 text-xs disabled:opacity-50">
+          {saving ? '…' : q.correct_answer ? '✓ Update' : 'Save'}
+        </button>
+        {q.correct_answer && (
+          <span className="text-green-400 text-xs font-semibold whitespace-nowrap">✓ Set: {q.correct_answer}</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function Admin() {
   const { player } = useAuth()
-  const [matches,   setMatches]   = useState([])
-  const [players,   setPlayers]   = useState([])
-  const [msg,       setMsg]       = useState('')
-  const [tab,       setTab]       = useState('matches')
-  const [report,    setReport]    = useState(null)
-  const [syncLogs,  setSyncLogs]  = useState([])
+  const [matches,    setMatches]    = useState([])
+  const [players,    setPlayers]    = useState([])
+  const [specialQs,  setSpecialQs]  = useState([])
+  const [msg,        setMsg]        = useState('')
+  const [tab,        setTab]        = useState('matches')
+  const [report,     setReport]     = useState(null)
+  const [syncLogs,   setSyncLogs]   = useState([])
   const [loadingReport, setLoadingReport] = useState(false)
 
   const TABS = [
     { key: 'matches', label: 'Matches & Results', icon: '⚽' },
+    { key: 'special', label: 'Special Answers',   icon: '⭐' },
     { key: 'players', label: `Players (${players.length})`, icon: '👥' },
     { key: 'reports', label: 'Reports',           icon: '📊' },
     { key: 'synclog', label: 'Sync Log',           icon: '🕐' },
@@ -151,6 +186,8 @@ export default function Admin() {
     if (!player?.is_admin) return
     reloadMatches()
     reloadPlayers()
+    supabase.from('special_questions').select('*').order('sort_order')
+      .then(({ data }) => data && setSpecialQs(data))
   }, [player])
 
   // Load sync log when that tab is opened
@@ -170,9 +207,9 @@ export default function Admin() {
       { data: specialAnswers },
       { data: bids },
     ] = await Promise.all([
-      supabase.from('players').select('id, display_name, email, total_pts, stage_pts'),
+      supabase.from('players').select('id, display_name, email, total_pts, stage_pts, jokers_left, knockout_jokers_left'),
       supabase.from('group_predictions').select('player_id'),
-      supabase.from('match_predictions').select('player_id, match_id'),
+      supabase.from('match_predictions').select('player_id, match_id, joker_used'),
       supabase.from('special_answers').select('player_id'),
       supabase.from('bids').select('player_id, amount, pick, match_num'),
     ])
@@ -182,21 +219,28 @@ export default function Admin() {
 
     // Per-player stats
     const playerStats = (allPlayers || []).map(p => {
-      const groupCount  = (groupPreds || []).filter(r => r.player_id === p.id).length
-      const matchCount  = (matchPreds || []).filter(r => r.player_id === p.id).length
-      const specialCount = (specialAnswers || []).filter(r => r.player_id === p.id).length
-      const playerBids  = (bids || []).filter(r => r.player_id === p.id)
-      const totalBidAmt = playerBids.reduce((s, b) => s + b.amount, 0)
-      const groupDone   = groupCount >= totalGroups * 4
-      const matchDone   = matchCount > 0
-      const specialDone = specialCount > 0
+      const groupCount    = (groupPreds || []).filter(r => r.player_id === p.id).length
+      const playerMatchPreds = (matchPreds || []).filter(r => r.player_id === p.id)
+      const matchCount    = playerMatchPreds.length
+      const specialCount  = (specialAnswers || []).filter(r => r.player_id === p.id).length
+      const playerBids    = (bids || []).filter(r => r.player_id === p.id)
+      const totalBidAmt   = playerBids.reduce((s, b) => s + b.amount, 0)
+      const groupDone     = groupCount >= totalGroups * 4
+      const matchDone     = matchCount > 0
+      const specialDone   = specialCount > 0
+
+      // Jokers: used = 3 - remaining
+      const groupJokersUsed = 3 - (p.jokers_left ?? 3)
+      const koJokersUsed    = 3 - (p.knockout_jokers_left ?? 3)
 
       return {
         ...p,
-        groupCount,  matchCount, specialCount,
-        groupDone,   matchDone,  specialDone,
-        bidCount:    playerBids.length,
+        groupCount, matchCount, specialCount,
+        groupDone,  matchDone,  specialDone,
+        bidCount:      playerBids.length,
         totalBidAmt,
+        groupJokersUsed,
+        koJokersUsed,
         allDone: groupDone && matchDone && specialDone,
       }
     })
@@ -227,46 +271,115 @@ export default function Admin() {
     const data = await fetchWithFallback(FIFA_MATCHES_URL)
     if (!data) { setMsg('FIFA API unavailable — try again later.'); return }
 
-    // Only matches with scores in the API
-    const fifaWithScores = (data.Results || []).filter(m =>
-      m.HomeTeamScore != null && m.AwayTeamScore != null
-    )
-    if (fifaWithScores.length === 0) { setMsg('No completed matches found in FIFA API yet.'); return }
-
     let updated = 0
     let skipped = 0
-    for (const fm of fifaWithScores) {
-      // Find matching DB record by match number (most reliable)
+    let teamsUpdated = 0
+
+    for (const fm of (data.Results || [])) {
       const match = matches.find(m => m.match_num === fm.MatchNumber)
       if (!match) continue
 
-      // Skip if DB already has this exact result — no need to update
-      if (match.home_goals === fm.HomeTeamScore && match.away_goals === fm.AwayTeamScore) {
-        skipped++
-        continue
+      const update = {}
+
+      // Update team names if FIFA now has real teams (overwrite placeholders)
+      const newHome = fm.Home?.ShortClubName || null
+      const newAway = fm.Away?.ShortClubName || null
+      if (newHome && newHome !== match.home_team) { update.home_team = newHome; teamsUpdated++ }
+      if (newAway && newAway !== match.away_team) { update.away_team = newAway; teamsUpdated++ }
+
+      // Update scores if available
+      if (fm.HomeTeamScore != null && fm.AwayTeamScore != null) {
+        if (match.home_goals === fm.HomeTeamScore && match.away_goals === fm.AwayTeamScore) {
+          skipped++
+        } else {
+          update.home_goals = fm.HomeTeamScore
+          update.away_goals = fm.AwayTeamScore
+          update.locked = true
+          if (fm.ResultType === 2 && fm.HomeTeamPenaltyScore != null) {
+            update.penalty_winner = fm.HomeTeamPenaltyScore > fm.AwayTeamPenaltyScore
+              ? fm.Home?.ShortClubName : fm.Away?.ShortClubName
+          }
+          updated++
+        }
       }
 
-      const update = { home_goals: fm.HomeTeamScore, away_goals: fm.AwayTeamScore, locked: true }
-      if (fm.ResultType === 2 && fm.HomeTeamPenaltyScore != null) {
-        update.penalty_winner = fm.HomeTeamPenaltyScore > fm.AwayTeamPenaltyScore
-          ? fm.Home?.ShortClubName : fm.Away?.ShortClubName
+      if (Object.keys(update).length > 0) {
+        await supabase.from('matches').update(update).eq('id', match.id)
       }
-      await supabase.from('matches').update(update).eq('id', match.id)
-      updated++
     }
 
-    if (updated > 0) {
-      setMsg(`✅ Synced ${updated} new result(s) · ${skipped} already up to date · recalculating points…`)
-      reloadMatches()
-      await recalcPoints(true) // auto-recalc after sync
-    } else {
-      setMsg(`✅ All ${skipped} result(s) already up to date — nothing to sync`)
-      reloadMatches()
+    const parts = []
+    if (updated > 0) parts.push(`${updated} new result(s)`)
+    if (teamsUpdated > 0) parts.push(`${teamsUpdated} team name(s) updated`)
+    if (skipped > 0) parts.push(`${skipped} already up to date`)
+
+    setMsg(`✅ Synced: ${parts.join(' · ')}${updated > 0 ? ' · recalculating points…' : ''}`)
+    reloadMatches()
+    if (updated > 0) await recalcPoints(true)
+  }
+
+  const recalcGroupAndThirdPts = async () => {
+    setMsg('Fetching final standings from FIFA…')
+
+    const standingsData = await fetchWithFallback('https://api.fifa.com/api/v3/calendar/17/285023/289273/standing?language=en&count=200')
+    if (!standingsData) { setMsg('FIFA standings API unavailable'); return }
+
+    const realStandings = {}
+    for (const r of (standingsData.Results || [])) {
+      const g = r.Group?.[0]?.Description?.replace('Group ', '')
+      const team = r.Team?.ShortClubName
+      if (g && team) {
+        if (!realStandings[g]) realStandings[g] = {}
+        realStandings[g][team] = r.Position
+      }
     }
+
+    const matchData = await fetchWithFallback('https://api.fifa.com/api/v3/calendar/matches?language=en&count=200&idSeason=285023')
+    const r32Teams = new Set()
+    if (matchData) {
+      const r32 = (matchData.Results || []).filter(m => m.MatchNumber >= 73 && m.MatchNumber <= 88)
+      r32.forEach(m => {
+        if (m.Home?.ShortClubName) r32Teams.add(m.Home.ShortClubName)
+        if (m.Away?.ShortClubName) r32Teams.add(m.Away.ShortClubName)
+      })
+    }
+
+    const allThirds = new Set()
+    Object.values(realStandings).forEach(group => {
+      const third = Object.entries(group).find(([, pos]) => pos === 3)?.[0]
+      if (third) allThirds.add(third)
+    })
+    const advancedThirds = [...allThirds].filter(t => r32Teams.has(t))
+
+    const POS_PTS = { 1: 25, 2: 15, 3: 10, 4: 5 }
+
+    // Score group prediction rows only
+    const { data: allGroupPreds } = await supabase.from('group_predictions').select('*')
+    let groupAwarded = 0
+    for (const pred of allGroupPreds || []) {
+      const actualPos = realStandings[pred.group_name]?.[pred.team_name]
+      const pts = (actualPos != null && actualPos === pred.predicted_position) ? (POS_PTS[actualPos] || 0) : 0
+      await supabase.from('group_predictions').update({ actual_position: actualPos || null, points_earned: pts }).eq('id', pred.id)
+      groupAwarded += pts
+    }
+
+    // Score third place pick rows only
+    const { data: allThirdPreds } = await supabase.from('third_place_picks').select('*')
+    let thirdAwarded = 0
+    for (const pick of allThirdPreds || []) {
+      const advanced = advancedThirds.includes(pick.team_name)
+      const pts = advanced ? 5 : 0
+      await supabase.from('third_place_picks').update({ advanced, points_earned: pts }).eq('id', pick.id)
+      thirdAwarded += pts
+    }
+
+    setMsg(`✅ Group rows scored: ${groupAwarded} pts · Third place rows scored: ${thirdAwarded} pts · Now click Recalculate Points to update totals.`)
   }
 
   const recalcPoints = async (silent = false) => {
     if (!silent) setMsg('Recalculating points…')
+
+    // 1. Recalc match prediction pts
     const { data: finishedMatches } = await supabase.from('matches').select('*').not('home_goals', 'is', null)
     for (const match of finishedMatches || []) {
       const { data: preds } = await supabase.from('match_predictions').select('*').eq('match_id', match.id)
@@ -286,14 +399,53 @@ export default function Admin() {
         await supabase.from('match_predictions').update({ total_pts: pts, penalty_pts: penPts }).eq('id', pred.id)
       }
     }
+
+    // 2. Sum match pts per player
     const { data: allPreds } = await supabase.from('match_predictions').select('player_id, total_pts, penalty_pts')
-    const totals = {}
+    const stageTotals = {}
     for (const p of allPreds || []) {
-      totals[p.player_id] = (totals[p.player_id] || 0) + (p.total_pts || 0) + (p.penalty_pts || 0)
+      stageTotals[p.player_id] = (stageTotals[p.player_id] || 0) + (p.total_pts || 0) + (p.penalty_pts || 0)
     }
-    for (const [pid, pts] of Object.entries(totals)) {
-      await supabase.from('players').update({ stage_pts: pts, total_pts: pts }).eq('id', pid)
+
+    // 3. Score special answers
+    const { data: questions }     = await supabase.from('special_questions').select('id, points, correct_answer')
+    const { data: allSpecialAns } = await supabase.from('special_answers').select('id, player_id, question_id, answer, joker_used')
+    const specialQTotals = {}
+    for (const ans of allSpecialAns || []) {
+      const q = (questions || []).find(q => q.id === ans.question_id)
+      if (!q || !q.correct_answer) continue
+      const correct = ans.answer?.trim().toLowerCase() === q.correct_answer.trim().toLowerCase()
+      let pts = correct ? q.points : 0
+      if (ans.joker_used) pts *= 2
+      await supabase.from('special_answers').update({ correct, points_earned: pts }).eq('id', ans.id)
+      specialQTotals[ans.player_id] = (specialQTotals[ans.player_id] || 0) + pts
     }
+
+    // 4. Sum group ranking pts per player (already scored, just re-sum)
+    const { data: allGroupPreds } = await supabase.from('group_predictions').select('player_id, points_earned')
+    const groupTotals = {}
+    for (const r of allGroupPreds || []) {
+      groupTotals[r.player_id] = (groupTotals[r.player_id] || 0) + (r.points_earned || 0)
+    }
+
+    // 5. Sum third place pts per player (already scored, just re-sum)
+    const { data: allThirdPreds } = await supabase.from('third_place_picks').select('player_id, points_earned')
+    const thirdTotals = {}
+    for (const r of allThirdPreds || []) {
+      thirdTotals[r.player_id] = (thirdTotals[r.player_id] || 0) + (r.points_earned || 0)
+    }
+
+    // 6. Write final totals — stage_pts = match pts, special_pts = group + third + special Q
+    const allPlayerIds = new Set([
+      ...Object.keys(stageTotals), ...Object.keys(specialQTotals),
+      ...Object.keys(groupTotals), ...Object.keys(thirdTotals)
+    ])
+    for (const pid of allPlayerIds) {
+      const stage   = stageTotals[pid]   || 0
+      const special = (specialQTotals[pid] || 0) + (groupTotals[pid] || 0) + (thirdTotals[pid] || 0)
+      await supabase.from('players').update({ stage_pts: stage, special_pts: special, total_pts: stage + special }).eq('id', pid)
+    }
+
     if (!silent) setMsg('Points recalculated ✅')
     else setMsg(prev => prev.replace('recalculating points…', 'points recalculated ✅'))
     reloadPlayers()
@@ -310,20 +462,46 @@ export default function Admin() {
     setPlayers(prev => prev.map(x => x.id === p.id ? { ...x, is_admin: !x.is_admin } : x))
   }
 
+  const [tempPwdModal, setTempPwdModal] = useState(null) // { name, email, password }
+
   const resetPlayerPassword = async (p) => {
-    if (!window.confirm(`Send password reset email to ${p.display_name} (${p.email})?`)) return
-    const { error } = await supabase.auth.resetPasswordForEmail(p.email, {
-      redirectTo: `${window.location.origin}/wc2026-predictor/change-password`
+    if (!window.confirm(`Set a temporary password for ${p.display_name} (${p.email})?\n\nThey will be required to change it on next login.`)) return
+    setMsg('Generating temp password…')
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch(`https://neqdmjxbjwxmoiaxzkiy.supabase.co/functions/v1/set-temp-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ target_user_id: p.user_id })
     })
-    if (error) {
-      setMsg(`Failed: ${error.message}`)
-    } else {
-      setMsg(`✅ Password reset email sent to ${p.email}`)
-    }
+    const json = await res.json()
+    if (!res.ok) { setMsg(`Failed: ${json.error}`); return }
+    setMsg('')
+    setTempPwdModal({ name: p.display_name, email: p.email, password: json.temp_password })
   }
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
+
+      {/* Temp Password Modal */}
+      {tempPwdModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }}>
+          <div className="card p-8 max-w-sm w-full text-center">
+            <div className="text-4xl mb-3">🔑</div>
+            <h2 className="text-xl font-black mb-1">Temp Password Set</h2>
+            <p className="text-slate-400 text-sm mb-4">Share this with <strong className="text-white">{tempPwdModal.name}</strong> ({tempPwdModal.email}). They must change it on next login.</p>
+            <div className="bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 font-mono text-lg tracking-widest text-green-300 select-all mb-4">
+              {tempPwdModal.password}
+            </div>
+            <button
+              onClick={() => { navigator.clipboard.writeText(tempPwdModal.password); setMsg('✅ Copied to clipboard') }}
+              className="btn-secondary w-full mb-2">
+              Copy to Clipboard
+            </button>
+            <button onClick={() => setTempPwdModal(null)} className="text-slate-500 hover:text-white text-sm mt-1">Close</button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-3xl font-black">⚙️ Admin Panel</h1>
@@ -345,6 +523,7 @@ export default function Admin() {
             <p className="text-slate-400 text-sm">Enter real scores after each match, or sync automatically from FIFA.</p>
             <div className="flex gap-2">
               <button onClick={syncFromFIFA} className="btn-secondary !py-2 !px-4 text-sm">📡 Sync from FIFA API + Recalculate</button>
+              <button onClick={recalcGroupAndThirdPts} className="btn-secondary !py-2 !px-4 text-sm">📋 Score Group & 3rd Place Picks</button>
               <button onClick={() => recalcPoints()} className="btn-primary !py-2 !px-4 text-sm">🔄 Recalculate Points Only</button>
             </div>
           </div>
@@ -353,6 +532,24 @@ export default function Admin() {
               ? <p className="text-slate-500 text-sm text-center py-6">No matches loaded yet.</p>
               : matches.map(m => <MatchResultForm key={m.id} match={m} onSaved={reloadMatches} />)
             }
+          </div>
+        </div>
+      )}
+
+      {/* ── Special Questions — grade correct answers ── */}
+      {tab === 'special' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-slate-400 text-sm">Enter the correct answer for each question. Click "Save". Then hit <b>Recalculate Points</b> on the Matches tab — special pts will update for everyone.</p>
+          </div>
+          {specialQs.length === 0 && (
+            <div className="card p-8 text-center text-slate-500">No special questions in DB yet — run the SQL schema first.</div>
+          )}
+          <div className="card divide-y divide-slate-800">
+            {specialQs.map(q => (
+              <SpecialQuestionGrader key={q.id} q={q}
+                onSaved={(id, ans) => setSpecialQs(prev => prev.map(x => x.id === id ? { ...x, correct_answer: ans } : x))} />
+            ))}
           </div>
         </div>
       )}
@@ -420,8 +617,8 @@ export default function Admin() {
                 <table className="w-full text-sm">
                   <thead className="bg-slate-800/60">
                     <tr>
-                      {['Player', 'Groups', 'Match Scores', 'Special Qs', 'Bids Placed', 'Status'].map(h => (
-                        <th key={h} className="text-left px-4 py-2.5 text-slate-400 text-xs uppercase">{h}</th>
+                      {['Player', 'Groups', 'Match Scores', 'Special Qs', 'Bids', 'Group 🃏', 'KO 🃏', 'Status'].map(h => (
+                        <th key={h} className="text-left px-4 py-2.5 text-slate-400 text-xs uppercase whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -434,20 +631,38 @@ export default function Admin() {
                         </td>
                         <td className="px-4 py-2.5">
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${p.groupDone ? 'bg-green-900/50 text-green-300' : 'bg-slate-700 text-slate-400'}`}>
-                            {p.groupDone ? '✓ Done' : `${Math.floor(p.groupCount/4)}/12 groups`}
+                            {p.groupDone ? '✓ Done' : `${Math.floor(p.groupCount/4)}/12`}
                           </span>
                         </td>
                         <td className="px-4 py-2.5">
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${p.matchCount > 0 ? 'bg-green-900/50 text-green-300' : 'bg-slate-700 text-slate-400'}`}>
-                            {p.matchCount > 0 ? `✓ ${p.matchCount} matches` : '✗ None'}
+                            {p.matchCount > 0 ? `✓ ${p.matchCount}` : '✗ None'}
                           </span>
                         </td>
                         <td className="px-4 py-2.5">
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${p.specialDone ? 'bg-green-900/50 text-green-300' : 'bg-slate-700 text-slate-400'}`}>
-                            {p.specialDone ? `✓ ${p.specialCount} answers` : '✗ None'}
+                            {p.specialDone ? `✓ ${p.specialCount}` : '✗ None'}
                           </span>
                         </td>
-                        <td className="px-4 py-2.5 text-slate-300 text-sm">{p.bidCount} bids</td>
+                        <td className="px-4 py-2.5 text-slate-300 text-xs">{p.bidCount}</td>
+                        {/* Group Jokers used */}
+                        <td className="px-4 py-2.5 text-center">
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full
+                            ${p.groupJokersUsed === 0 ? 'bg-slate-700 text-slate-500'
+                            : p.groupJokersUsed === 3 ? 'bg-red-900/50 text-red-300'
+                            : 'bg-yellow-900/50 text-yellow-300'}`}>
+                            {p.groupJokersUsed}/3
+                          </span>
+                        </td>
+                        {/* Knockout Jokers used */}
+                        <td className="px-4 py-2.5 text-center">
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full
+                            ${p.koJokersUsed === 0 ? 'bg-slate-700 text-slate-500'
+                            : p.koJokersUsed === 3 ? 'bg-red-900/50 text-red-300'
+                            : 'bg-purple-900/50 text-purple-300'}`}>
+                            {p.koJokersUsed}/3
+                          </span>
+                        </td>
                         <td className="px-4 py-2.5">
                           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${p.allDone ? 'bg-green-700 text-white' : 'bg-yellow-900/50 text-yellow-300'}`}>
                             {p.allDone ? '🟢 Complete' : '🟡 Partial'}
