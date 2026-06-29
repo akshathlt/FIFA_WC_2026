@@ -505,13 +505,19 @@ export default function Admin() {
     if (!window.confirm(`Set a temporary password for ${p.display_name} (${p.email})?\n\nThey will be required to change it on next login.`)) return
     setMsg('Generating temp password…')
     const { data: { session } } = await supabase.auth.getSession()
-    const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/set-temp-password`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-      body: JSON.stringify({ target_user_id: p.user_id })
-    })
-    const json = await res.json()
-    if (!res.ok) { setMsg(`Failed: ${json.error}`); return }
+    let res, json
+    try {
+      res = await fetch(`${SUPABASE_FUNCTIONS_URL}/set-temp-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ target_user_id: p.user_id })
+      })
+      const text = await res.text()
+      try { json = JSON.parse(text) } catch { json = { error: text || `HTTP ${res.status}` } }
+    } catch (e) {
+      setMsg(`Failed: ${e.message}`); return
+    }
+    if (!res.ok) { setMsg(`Failed: ${json?.error || `HTTP ${res.status}`}`); return }
     setMsg('')
     setTempPwdModal({ name: p.display_name, email: p.email, password: json.temp_password })
   }
